@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   GitBranch,
   GitCommit,
@@ -9,10 +10,19 @@ import {
   ChevronLeft,
   ChevronRight,
   Plus,
+  Trash2,
+  TreePine,
+  BarChart3,
+  Lock,
+  AlertTriangle,
+  Loader2,
+  RefreshCw,
+  GitCompare,
 } from 'lucide-react';
 import { useRepositoryStore } from '@/stores/repository-store';
 import { useGitStore } from '@/stores/git-store';
 import { useUIStore } from '@/stores/ui-store';
+import { useTranslation } from '@/i18n';
 import type { TabType } from '@/types';
 
 interface SidebarProps {
@@ -20,20 +30,91 @@ interface SidebarProps {
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({ className = '' }) => {
+  const navigate = useNavigate();
   const activeRepo = useRepositoryStore((s) => s.activeRepo);
   const tabs = useRepositoryStore((s) => s.tabs);
   const setActiveTab = useRepositoryStore((s) => s.setActiveTab);
   const closeTab = useRepositoryStore((s) => s.closeTab);
   const sidebarOpen = useUIStore((s) => s.sidebarOpen);
   const toggleSidebar = useUIStore((s) => s.toggleSidebar);
+  const addNotification = useUIStore((s) => s.addNotification);
+  const { t } = useTranslation();
 
   const branches = useGitStore((s) => s.branches);
   const tags = useGitStore((s) => s.tags);
   const remotes = useGitStore((s) => s.remotes);
   const stashes = useGitStore((s) => s.stashes);
   const status = useGitStore((s) => s.status);
+  const worktrees = useGitStore((s) => s.worktrees);
+  const statistics = useGitStore((s) => s.statistics);
+  const worktreesLoading = useGitStore((s) => s.loading.worktrees);
+  const statisticsLoading = useGitStore((s) => s.loading.statistics);
+
+  const fetchWorktrees = useGitStore((s) => s.fetchWorktrees);
+  const fetchStatistics = useGitStore((s) => s.fetchStatistics);
+  const addWorktree = useGitStore((s) => s.addWorktree);
+  const removeWorktree = useGitStore((s) => s.removeWorktree);
+  const pruneWorktrees = useGitStore((s) => s.pruneWorktrees);
 
   const [activeSection, setActiveSection] = useState<string>('branches');
+
+  // Worktree dialog state
+  const [addWorktreeDialogOpen, setAddWorktreeDialogOpen] = useState(false);
+  const [newWorktreePath, setNewWorktreePath] = useState('');
+  const [newWorktreeRef, setNewWorktreeRef] = useState('');
+  const [addingWorktree, setAddingWorktree] = useState(false);
+
+  // Load worktrees and statistics when sidebar is open and section is selected
+  useEffect(() => {
+    if (sidebarOpen && activeRepo) {
+      fetchWorktrees();
+      fetchStatistics();
+    }
+  }, [sidebarOpen, activeRepo, fetchWorktrees, fetchStatistics]);
+
+  const handleAddWorktree = useCallback(async () => {
+    if (!newWorktreePath.trim()) {
+      addNotification({ type: 'warning', title: 'Please enter worktree path' });
+      return;
+    }
+    if (!newWorktreeRef.trim()) {
+      addNotification({ type: 'warning', title: 'Please enter a reference (branch name)' });
+      return;
+    }
+    setAddingWorktree(true);
+    try {
+      await addWorktree(newWorktreePath, newWorktreeRef);
+      addNotification({ type: 'success', title: 'Worktree added' });
+      setAddWorktreeDialogOpen(false);
+      setNewWorktreePath('');
+      setNewWorktreeRef('');
+    } catch (err) {
+      addNotification({ type: 'error', title: 'Failed to add worktree', message: String(err) });
+    } finally {
+      setAddingWorktree(false);
+    }
+  }, [newWorktreePath, newWorktreeRef, addWorktree, addNotification]);
+
+  const handleRemoveWorktree = useCallback(
+    async (path: string) => {
+      try {
+        await removeWorktree(path, false);
+        addNotification({ type: 'success', title: 'Worktree removed' });
+      } catch (err) {
+        addNotification({ type: 'error', title: 'Failed to remove worktree', message: String(err) });
+      }
+    },
+    [removeWorktree, addNotification]
+  );
+
+  const handlePruneWorktrees = useCallback(async () => {
+    try {
+      await pruneWorktrees();
+      addNotification({ type: 'success', title: 'Worktrees pruned' });
+    } catch (err) {
+      addNotification({ type: 'error', title: 'Failed to prune worktrees', message: String(err) });
+    }
+  }, [pruneWorktrees, addNotification]);
 
   if (!sidebarOpen) {
     return (
@@ -49,24 +130,26 @@ export const Sidebar: React.FC<SidebarProps> = ({ className = '' }) => {
           onClick={toggleSidebar}
           className="p-1.5 rounded transition-colors hover:bg-overlay"
           style={{ color: 'var(--text-secondary)' }}
-          title="Expand sidebar"
+          title={t('sidebar.expandSidebar')}
         >
           <ChevronRight size={16} />
         </button>
         <div className="mt-4 flex flex-col gap-2">
-          <SidebarIcon icon={<GitBranch size={18} />} title="Branches" />
-          <SidebarIcon icon={<Clock size={18} />} title="History" />
-          <SidebarIcon icon={<Tag size={18} />} title="Tags" />
+          <SidebarIcon icon={<GitBranch size={18} />} title={t('sidebar.branches')} />
+          <SidebarIcon icon={<Clock size={18} />} title={t('sidebar.history')} />
+          <SidebarIcon icon={<Tag size={18} />} title={t('sidebar.tags')} />
         </div>
       </div>
     );
   }
 
   const sections = [
-    { id: 'branches', label: 'Branches', icon: <GitBranch size={16} />, count: branches.length },
-    { id: 'tags', label: 'Tags', icon: <Tag size={16} />, count: tags.length },
-    { id: 'remotes', label: 'Remotes', icon: <FolderGit2 size={16} />, count: remotes.length },
-    { id: 'stashes', label: 'Stashes', icon: <Clock size={16} />, count: stashes.length },
+    { id: 'branches', label: t('sidebar.branches'), icon: <GitBranch size={16} />, count: branches.length },
+    { id: 'tags', label: t('sidebar.tags'), icon: <Tag size={16} />, count: tags.length },
+    { id: 'remotes', label: t('sidebar.remotes'), icon: <FolderGit2 size={16} />, count: remotes.length },
+    { id: 'stashes', label: t('sidebar.stashes'), icon: <Clock size={16} />, count: stashes.length },
+    { id: 'worktrees', label: t('sidebar.worktrees'), icon: <TreePine size={16} />, count: worktrees.length },
+    { id: 'statistics', label: t('sidebar.stats'), icon: <BarChart3 size={16} />, count: 0 },
   ];
 
   return (
@@ -86,7 +169,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ className = '' }) => {
         <div className="flex items-center gap-2">
           <FolderGit2 size={16} style={{ color: 'var(--accent-mauve)' }} />
           <span className="text-xs font-medium truncate" style={{ color: 'var(--text-primary)' }}>
-            {activeRepo ? activeRepo.split('/').pop() : 'No repository'}
+            {activeRepo ? activeRepo.split('/').pop() : t('sidebar.noRepo')}
           </span>
         </div>
         <div className="flex items-center gap-1">
@@ -94,7 +177,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ className = '' }) => {
             onClick={toggleSidebar}
             className="p-1 rounded transition-colors hover:bg-overlay"
             style={{ color: 'var(--text-subtle)' }}
-            title="Collapse sidebar"
+            title={t('sidebar.collapseSidebar')}
           >
             <ChevronLeft size={14} />
           </button>
@@ -123,20 +206,23 @@ export const Sidebar: React.FC<SidebarProps> = ({ className = '' }) => {
       )}
 
       {/* Section tabs */}
-      <div className="flex border-b shrink-0" style={{ borderColor: 'var(--border-color)' }}>
+      <div className="flex border-b shrink-0 overflow-x-auto" style={{ borderColor: 'var(--border-color)' }}>
         {sections.map((section) => (
           <button
             key={section.id}
             onClick={() => setActiveSection(section.id)}
-            className="flex-1 flex flex-col items-center gap-0.5 py-2 text-xs transition-colors"
+            className="flex-1 flex flex-col items-center gap-0.5 py-2 text-xs transition-colors shrink-0"
             style={{
               color: activeSection === section.id ? 'var(--accent-blue)' : 'var(--text-subtle)',
               borderBottom: activeSection === section.id ? '2px solid var(--accent-blue)' : '2px solid transparent',
+              minWidth: 40,
             }}
           >
             {section.icon}
-            <span>{section.label}</span>
-            <span style={{ fontSize: 10 }}>{section.count}</span>
+            <span style={{ fontSize: 10 }}>{section.label}</span>
+            {section.count > 0 && (
+              <span style={{ fontSize: 9 }}>{section.count}</span>
+            )}
           </button>
         ))}
       </div>
@@ -150,7 +236,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ className = '' }) => {
               style={{ color: 'var(--accent-green)' }}
             >
               <Plus size={12} />
-              <span>New Branch</span>
+              <span>{t('sidebar.newBranch')}</span>
             </button>
             {branches.map((branch) => (
               <button
@@ -223,12 +309,266 @@ export const Sidebar: React.FC<SidebarProps> = ({ className = '' }) => {
             ))}
             {stashes.length === 0 && (
               <div className="px-2 py-4 text-center text-xs" style={{ color: 'var(--text-subtle)' }}>
-                No stashes
+                {t('sidebar.noStashes')}
+              </div>
+            )}
+          </div>
+        )}
+
+        {activeSection === 'worktrees' && (
+          <div className="p-2">
+            {/* Worktree actions */}
+            <div className="flex items-center gap-1 mb-2">
+              <button
+                onClick={() => setAddWorktreeDialogOpen(true)}
+                className="flex-1 flex items-center justify-center gap-1 px-2 py-1.5 text-xs rounded transition-colors hover:bg-overlay"
+                style={{ color: 'var(--accent-green)' }}
+              >
+                <Plus size={12} />
+                <span>{t('common.add')}</span>
+              </button>
+              <button
+                onClick={handlePruneWorktrees}
+                className="flex items-center justify-center gap-1 px-2 py-1.5 text-xs rounded transition-colors hover:bg-overlay"
+                style={{ color: 'var(--accent-peach)' }}
+                title="Prune stale worktrees"
+              >
+                <RefreshCw size={12} />
+                <span>{t('common.prune')}</span>
+              </button>
+            </div>
+
+            {worktreesLoading ? (
+              <div className="flex items-center justify-center py-4" style={{ color: 'var(--text-subtle)' }}>
+                <Loader2 size={14} className="animate-spin" />
+              </div>
+            ) : worktrees.length === 0 ? (
+              <div className="px-2 py-4 text-center text-xs" style={{ color: 'var(--text-subtle)' }}>
+                {t('sidebar.noWorktrees')}
+              </div>
+            ) : (
+              worktrees.map((wt) => (
+                <div
+                  key={wt.path}
+                  className="flex items-center gap-2 px-2 py-1.5 text-xs rounded transition-colors hover:bg-overlay group"
+                  style={{ color: 'var(--text-primary)' }}
+                >
+                  <TreePine size={12} style={{ color: wt.is_main ? 'var(--accent-green)' : 'var(--accent-teal)' }} />
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-1">
+                      <span className="truncate font-medium">{wt.name}</span>
+                      {wt.is_main && (
+                        <span
+                          className="px-1 py-0.5 rounded shrink-0"
+                          style={{ backgroundColor: 'var(--accent-green)', color: 'var(--bg-base)', fontSize: 9 }}
+                        >
+                          MAIN
+                        </span>
+                      )}
+                      {wt.is_locked && (
+                        <Lock size={10} style={{ color: 'var(--accent-yellow)' }} />
+                      )}
+                    </div>
+                    <div className="truncate" style={{ color: 'var(--text-subtle)', fontSize: 10 }}>
+                      {wt.branch} - {wt.path}
+                    </div>
+                  </div>
+                  {!wt.is_main && (
+                    <button
+                      onClick={() => handleRemoveWorktree(wt.path)}
+                      className="p-1 rounded opacity-0 group-hover:opacity-100 transition-opacity hover:bg-overlay"
+                      style={{ color: 'var(--accent-red)' }}
+                      title="Remove worktree"
+                    >
+                      <Trash2 size={12} />
+                    </button>
+                  )}
+                </div>
+              ))
+            )}
+          </div>
+        )}
+
+        {activeSection === 'statistics' && (
+          <div className="p-2">
+            {statisticsLoading ? (
+              <div className="flex items-center justify-center py-4" style={{ color: 'var(--text-subtle)' }}>
+                <Loader2 size={14} className="animate-spin" />
+              </div>
+            ) : statistics ? (
+              <div className="space-y-1">
+                <StatRow
+                  icon={<GitCommit size={12} style={{ color: 'var(--accent-mauve)' }} />}
+                  label={t('sidebar.totalCommits')}
+                  value={statistics.total_commits.toLocaleString()}
+                />
+                <StatRow
+                  icon={<GitBranch size={12} style={{ color: 'var(--accent-green)' }} />}
+                  label={t('sidebar.totalBranches')}
+                  value={statistics.total_branches.toLocaleString()}
+                />
+                <StatRow
+                  icon={<Tag size={12} style={{ color: 'var(--accent-peach)' }} />}
+                  label={t('sidebar.totalTags')}
+                  value={statistics.total_tags.toLocaleString()}
+                />
+                <StatRow
+                  icon={<FolderGit2 size={12} style={{ color: 'var(--accent-blue)' }} />}
+                  label={t('sidebar.totalRemotes')}
+                  value={statistics.total_remotes.toLocaleString()}
+                />
+                <StatRow
+                  icon={<Clock size={12} style={{ color: 'var(--accent-yellow)' }} />}
+                  label={t('sidebar.totalStashes')}
+                  value={statistics.total_stashes.toLocaleString()}
+                />
+                <StatRow
+                  icon={<TreePine size={12} style={{ color: 'var(--accent-teal)' }} />}
+                  label={t('sidebar.totalWorktrees')}
+                  value={statistics.total_worktrees.toLocaleString()}
+                />
+                <StatRow
+                  icon={<AlertTriangle size={12} style={{ color: 'var(--accent-lavender)' }} />}
+                  label={t('sidebar.totalAuthors')}
+                  value={statistics.total_authors.toLocaleString()}
+                />
+
+                {/* Date range */}
+                {statistics.first_commit_time && (
+                  <div
+                    className="mt-2 px-2 py-1.5 rounded text-xs"
+                    style={{ backgroundColor: 'var(--bg-overlay)', color: 'var(--text-subtle)' }}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span>{t('sidebar.firstCommit')}</span>
+                      <span style={{ color: 'var(--text-secondary)' }}>
+                        {new Date(statistics.first_commit_time * 1000).toLocaleDateString()}
+                      </span>
+                    </div>
+                    {statistics.last_commit_time && (
+                      <div className="flex items-center justify-between mt-1">
+                        <span>{t('sidebar.lastCommit')}</span>
+                        <span style={{ color: 'var(--text-secondary)' }}>
+                          {new Date(statistics.last_commit_time * 1000).toLocaleDateString()}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="px-2 py-4 text-center text-xs" style={{ color: 'var(--text-subtle)' }}>
+                {t('sidebar.noStats')}
               </div>
             )}
           </div>
         )}
       </div>
+
+      {/* Quick navigation */}
+      <div
+        className="border-t shrink-0"
+        style={{ borderColor: 'var(--border-color)' }}
+      >
+        <button
+          onClick={() => navigate('/compare')}
+          className="w-full flex items-center gap-2 px-3 py-2 text-xs transition-colors hover:bg-overlay"
+          style={{ color: 'var(--accent-blue)' }}
+        >
+          <GitCompare size={14} />
+          <span>{t('sidebar.compareRevisions')}</span>
+        </button>
+        <button
+          onClick={() => navigate('/statistics')}
+          className="w-full flex items-center gap-2 px-3 py-2 text-xs transition-colors hover:bg-overlay"
+          style={{ color: 'var(--accent-mauve)' }}
+        >
+          <BarChart3 size={14} />
+          <span>{t('sidebar.statistics')}</span>
+        </button>
+      </div>
+
+      {/* Add Worktree Dialog */}
+      {addWorktreeDialogOpen && (
+        <div
+          className="fixed inset-0 flex items-center justify-center"
+          style={{ backgroundColor: 'rgba(0, 0, 0, 0.5)', zIndex: 1000 }}
+          onClick={() => setAddWorktreeDialogOpen(false)}
+        >
+          <div
+            className="rounded-lg shadow-lg p-4"
+            style={{
+              backgroundColor: 'var(--bg-surface)',
+              border: '1px solid var(--border-color)',
+              width: 360,
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-sm font-semibold mb-3" style={{ color: 'var(--text-primary)' }}>
+              {t('sidebar.addWorktree')}
+            </h3>
+
+            <div className="space-y-3">
+              <div>
+                <label className="text-xs block mb-1" style={{ color: 'var(--text-secondary)' }}>
+                  {t('sidebar.worktreePath')}
+                </label>
+                <input
+                  type="text"
+                  value={newWorktreePath}
+                  onChange={(e) => setNewWorktreePath(e.target.value)}
+                  className="w-full px-2 py-1.5 rounded border text-xs"
+                  style={{
+                    backgroundColor: 'var(--bg-overlay)',
+                    borderColor: 'var(--border-color)',
+                    color: 'var(--text-primary)',
+                  }}
+                  placeholder="/path/to/worktree"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs block mb-1" style={{ color: 'var(--text-secondary)' }}>
+                  {t('sidebar.branchRef')}
+                </label>
+                <input
+                  type="text"
+                  value={newWorktreeRef}
+                  onChange={(e) => setNewWorktreeRef(e.target.value)}
+                  className="w-full px-2 py-1.5 rounded border text-xs"
+                  style={{
+                    backgroundColor: 'var(--bg-overlay)',
+                    borderColor: 'var(--border-color)',
+                    color: 'var(--text-primary)',
+                  }}
+                  placeholder="e.g., feature/new-branch"
+                />
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 mt-4">
+              <button
+                onClick={() => setAddWorktreeDialogOpen(false)}
+                className="px-3 py-1.5 rounded text-xs transition-colors"
+                style={{ color: 'var(--text-secondary)' }}
+              >
+                {t('common.cancel')}
+              </button>
+              <button
+                onClick={handleAddWorktree}
+                disabled={addingWorktree || !newWorktreePath.trim() || !newWorktreeRef.trim()}
+                className="px-3 py-1.5 rounded text-xs font-medium transition-colors disabled:opacity-50"
+                style={{
+                  backgroundColor: 'var(--accent-green)',
+                  color: 'var(--bg-base)',
+                }}
+              >
+                {addingWorktree ? t('sidebar.adding') : t('sidebar.addWorktreeBtn')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
@@ -241,4 +581,19 @@ const SidebarIcon: React.FC<{ icon: React.ReactNode; title: string }> = ({ icon,
   >
     {icon}
   </button>
+);
+
+const StatRow: React.FC<{ icon: React.ReactNode; label: string; value: string }> = ({ icon, label, value }) => (
+  <div
+    className="flex items-center gap-2 px-2 py-1.5 rounded text-xs"
+    style={{ backgroundColor: 'var(--bg-overlay)' }}
+  >
+    {icon}
+    <span className="flex-1" style={{ color: 'var(--text-secondary)' }}>
+      {label}
+    </span>
+    <span className="font-mono font-medium" style={{ color: 'var(--text-primary)' }}>
+      {value}
+    </span>
+  </div>
 );

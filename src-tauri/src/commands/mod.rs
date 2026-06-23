@@ -547,3 +547,395 @@ pub fn git_create_archive(
 pub fn git_discard_changes(path: String, files: Vec<String>) -> Result<(), String> {
     git::discard::discard_changes(&path, &files).map_err(|e| e.to_string())
 }
+
+// ============================================================
+// Stash show command
+// ============================================================
+
+#[tauri::command]
+pub fn git_show_stash(path: String, index: u32) -> Result<String, String> {
+    git::stash::show_stash(&path, index).map_err(|e| e.to_string())
+}
+
+// ============================================================
+// Remote edit / delete remote tag commands
+// ============================================================
+
+#[tauri::command]
+pub fn git_edit_remote(path: String, name: String, new_url: String) -> Result<(), String> {
+    git::remote::edit_remote(&path, &name, &new_url).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn git_delete_remote_tag(path: String, name: String, remote: String) -> Result<(), String> {
+    git::remote::delete_remote_tag(&path, &name, &remote).map_err(|e| e.to_string())
+}
+
+// ============================================================
+// Search commands
+// ============================================================
+
+#[tauri::command]
+pub fn git_search_commits(
+    path: String,
+    query: String,
+    author: Option<String>,
+    since: Option<String>,
+    until: Option<String>,
+    limit: u32,
+) -> Result<Vec<Commit>, String> {
+    git::search::search_commits(
+        &path,
+        &query,
+        author.as_deref(),
+        since.as_deref(),
+        until.as_deref(),
+        limit,
+    )
+    .map_err(|e| e.to_string())
+}
+
+// ============================================================
+// In-progress state commands
+// ============================================================
+
+#[tauri::command]
+pub fn git_get_in_progress(path: String) -> Result<InProgressState, String> {
+    git::in_progress::get_in_progress(&path).map_err(|e| e.to_string())
+}
+
+// ============================================================
+// Conflict commands
+// ============================================================
+
+#[tauri::command]
+pub fn git_get_merge_conflicts(path: String) -> Result<Vec<ConflictFile>, String> {
+    git::conflict::get_merge_conflicts(&path).map_err(|e| e.to_string())
+}
+
+// ============================================================
+// File operations commands
+// ============================================================
+
+#[tauri::command]
+pub fn git_assume_unchanged(path: String, files: Vec<String>, enable: bool) -> Result<(), String> {
+    git::file_ops::assume_unchanged(&path, &files, enable).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn git_skip_worktree(path: String, files: Vec<String>, enable: bool) -> Result<(), String> {
+    git::file_ops::skip_worktree(&path, &files, enable).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn git_add_to_gitignore(path: String, patterns: Vec<String>) -> Result<(), String> {
+    git::file_ops::add_to_gitignore(&path, &patterns).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn git_delete_files(path: String, files: Vec<String>) -> Result<(), String> {
+    git::file_ops::delete_files(&path, &files).map_err(|e| e.to_string())
+}
+
+// ============================================================
+// Patch commands
+// ============================================================
+
+#[tauri::command]
+pub fn git_save_patch(path: String, output_dir: String, sha: String) -> Result<String, String> {
+    git::patch::save_patch(&path, &output_dir, &sha).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn git_apply_patch(path: String, patch_file: String) -> Result<(), String> {
+    git::patch::apply_patch(&path, &patch_file).map_err(|e| e.to_string())
+}
+
+// ============================================================
+// Interactive rebase command
+// ============================================================
+
+#[tauri::command]
+pub async fn git_start_interactive_rebase(
+    path: String,
+    onto: Option<String>,
+    app_handle: tauri::AppHandle,
+) -> Result<(), String> {
+    let app = app_handle.clone();
+    git::rebase::start_interactive_rebase(&path, onto.as_deref(), move |line| {
+        let _ = app.emit("git-rebase-progress", line);
+    })
+    .await
+    .map_err(|e| e.to_string())
+}
+
+// ============================================================
+// File history / commit children commands
+// ============================================================
+
+#[tauri::command]
+pub fn git_get_file_history(path: String, file: String, limit: u32) -> Result<Vec<Commit>, String> {
+    git::log::get_file_history(&path, &file, limit).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn git_get_commit_children(path: String, sha: String) -> Result<Vec<Commit>, String> {
+    git::log::get_commit_children(&path, &sha).map_err(|e| e.to_string())
+}
+
+// ============================================================
+// Platform commands
+// ============================================================
+
+#[tauri::command]
+pub fn git_get_git_version() -> Result<String, String> {
+    git::platform::get_git_version().map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn git_get_app_version() -> String {
+    git::platform::get_app_version()
+}
+
+#[tauri::command]
+pub fn git_open_in_file_manager(path: String) -> Result<(), String> {
+    git::platform::open_in_file_manager(&path).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn git_open_in_terminal(path: String) -> Result<(), String> {
+    git::platform::open_in_terminal(&path).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn git_open_in_browser(url: String) -> Result<(), String> {
+    git::platform::open_in_browser(&url).map_err(|e| e.to_string())
+}
+
+// ============================================================
+// GitFlow commands
+// ============================================================
+
+#[tauri::command]
+pub fn gitflow_is_available() -> bool {
+    git::gitflow::is_gitflow_available()
+}
+
+#[tauri::command]
+pub fn gitflow_init(
+    path: String,
+    branches: Option<GitFlowBranches>,
+) -> Result<(), String> {
+    git::gitflow::gitflow_init(&path, branches).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn gitflow_start(
+    path: String,
+    branch_type: String,
+    name: String,
+    base: Option<String>,
+) -> Result<(), String> {
+    git::gitflow::gitflow_start(&path, &branch_type, &name, base.as_deref())
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn gitflow_finish(
+    path: String,
+    branch_type: String,
+    name: String,
+    options: GitFlowFinishOptions,
+) -> Result<(), String> {
+    git::gitflow::gitflow_finish(&path, &branch_type, &name, options).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn gitflow_list(path: String) -> Result<GitFlowStatus, String> {
+    git::gitflow::gitflow_list(&path).map_err(|e| e.to_string())
+}
+
+// ============================================================
+// Bisect commands
+// ============================================================
+
+#[tauri::command]
+pub fn git_bisect_start(
+    path: String,
+    bad: Option<String>,
+    good: Option<String>,
+) -> Result<(), String> {
+    git::bisect::bisect_start(&path, bad.as_deref(), good.as_deref()).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn git_bisect_mark(
+    path: String,
+    state: String,
+    revision: Option<String>,
+) -> Result<BisectResult, String> {
+    git::bisect::bisect_mark(&path, &state, revision.as_deref()).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn git_bisect_reset(path: String) -> Result<(), String> {
+    git::bisect::bisect_reset(&path).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn git_bisect_log(path: String) -> Result<String, String> {
+    git::bisect::bisect_log(&path).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn git_bisect_status(path: String) -> Result<Option<BisectState>, String> {
+    git::bisect::bisect_status(&path).map_err(|e| e.to_string())
+}
+
+// ============================================================
+// LFS commands
+// ============================================================
+
+#[tauri::command]
+pub fn git_lfs_is_available() -> bool {
+    git::lfs::is_lfs_available()
+}
+
+#[tauri::command]
+pub fn git_lfs_track(path: String, pattern: String) -> Result<(), String> {
+    git::lfs::track(&path, &pattern).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn git_lfs_untrack(path: String, pattern: String) -> Result<(), String> {
+    git::lfs::untrack(&path, &pattern).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn git_lfs_list_tracks(path: String) -> Result<Vec<String>, String> {
+    git::lfs::list_tracks(&path).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn git_lfs_fetch(
+    path: String,
+    remote: Option<String>,
+    include: Option<String>,
+    exclude: Option<String>,
+) -> Result<(), String> {
+    git::lfs::lfs_fetch(&path, remote.as_deref(), include.as_deref(), exclude.as_deref())
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn git_lfs_pull(
+    path: String,
+    remote: Option<String>,
+    include: Option<String>,
+    exclude: Option<String>,
+) -> Result<(), String> {
+    git::lfs::lfs_pull(&path, remote.as_deref(), include.as_deref(), exclude.as_deref())
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn git_lfs_push(
+    path: String,
+    remote: Option<String>,
+    include: Option<String>,
+    exclude: Option<String>,
+    all: bool,
+) -> Result<(), String> {
+    git::lfs::lfs_push(&path, remote.as_deref(), include.as_deref(), exclude.as_deref(), all)
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn git_lfs_prune(path: String, dry_run: bool) -> Result<String, String> {
+    git::lfs::lfs_prune(&path, dry_run).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn git_lfs_lock(path: String, file: String) -> Result<(), String> {
+    git::lfs::lfs_lock(&path, &file).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn git_lfs_unlock(path: String, file: String, force: bool) -> Result<(), String> {
+    git::lfs::lfs_unlock(&path, &file, force).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn git_lfs_list_locks(path: String) -> Result<Vec<LfsLock>, String> {
+    git::lfs::list_locks(&path).map_err(|e| e.to_string())
+}
+
+// ============================================================
+// File Watcher commands
+// ============================================================
+
+#[tauri::command]
+pub fn start_file_watcher(app_handle: tauri::AppHandle, path: String) -> Result<(), String> {
+    git::watcher::start_watcher(app_handle, path).map_err(|e| e.to_string())
+}
+
+// ============================================================
+// Command Log commands
+// ============================================================
+
+#[tauri::command]
+pub fn git_get_command_logs(limit: u32, offset: u32) -> Vec<crate::git::command_log::CommandLogEntry> {
+    crate::git::command_log::get_logs(limit, offset)
+}
+
+#[tauri::command]
+pub fn git_clear_command_logs() {
+    crate::git::command_log::clear_logs();
+}
+
+#[tauri::command]
+pub fn git_get_command_log_count() -> usize {
+    crate::git::command_log::get_log_count()
+}
+
+// ============================================================
+// Custom Action commands
+// ============================================================
+
+#[tauri::command]
+pub fn git_execute_custom_action(
+    path: String,
+    action: crate::git::custom_action::CustomAction,
+    variable_values: std::collections::HashMap<String, String>,
+    app_handle: tauri::AppHandle,
+) -> Result<String, String> {
+    let app = app_handle.clone();
+    crate::git::custom_action::execute_custom_action(
+        &path,
+        &action,
+        variable_values,
+        move |line| {
+            let _ = app.emit("custom-action-output", line);
+        },
+    )
+    .map_err(|e| e.to_string())
+}
+
+// ============================================================
+// Repo Config commands
+// ============================================================
+
+#[tauri::command]
+pub fn git_get_repo_config(
+    path: String,
+) -> Result<crate::git::custom_action::RepoConfig, String> {
+    crate::git::custom_action::get_repo_config(&path).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn git_save_repo_config(
+    path: String,
+    config: crate::git::custom_action::RepoConfig,
+) -> Result<(), String> {
+    crate::git::custom_action::save_repo_config(&path, &config).map_err(|e| e.to_string())
+}

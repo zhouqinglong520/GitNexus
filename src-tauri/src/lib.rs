@@ -95,6 +95,71 @@ pub fn run() {
             commands::git_create_archive,
             // Discard
             commands::git_discard_changes,
+            // Stash show
+            commands::git_show_stash,
+            // Remote edit / delete remote tag
+            commands::git_edit_remote,
+            commands::git_delete_remote_tag,
+            // Search
+            commands::git_search_commits,
+            // In-progress state
+            commands::git_get_in_progress,
+            // Conflict
+            commands::git_get_merge_conflicts,
+            // File operations
+            commands::git_assume_unchanged,
+            commands::git_skip_worktree,
+            commands::git_add_to_gitignore,
+            commands::git_delete_files,
+            // Patch
+            commands::git_save_patch,
+            commands::git_apply_patch,
+            // Interactive rebase
+            commands::git_start_interactive_rebase,
+            // File history / commit children
+            commands::git_get_file_history,
+            commands::git_get_commit_children,
+            // Platform
+            commands::git_get_git_version,
+            commands::git_get_app_version,
+            commands::git_open_in_file_manager,
+            commands::git_open_in_terminal,
+            commands::git_open_in_browser,
+            // GitFlow
+            commands::gitflow_is_available,
+            commands::gitflow_init,
+            commands::gitflow_start,
+            commands::gitflow_finish,
+            commands::gitflow_list,
+            // Bisect
+            commands::git_bisect_start,
+            commands::git_bisect_mark,
+            commands::git_bisect_reset,
+            commands::git_bisect_log,
+            commands::git_bisect_status,
+            // LFS
+            commands::git_lfs_is_available,
+            commands::git_lfs_track,
+            commands::git_lfs_untrack,
+            commands::git_lfs_list_tracks,
+            commands::git_lfs_fetch,
+            commands::git_lfs_pull,
+            commands::git_lfs_push,
+            commands::git_lfs_prune,
+            commands::git_lfs_lock,
+            commands::git_lfs_unlock,
+            commands::git_lfs_list_locks,
+            // File Watcher
+            commands::start_file_watcher,
+            // Command Log
+            commands::git_get_command_logs,
+            commands::git_clear_command_logs,
+            commands::git_get_command_log_count,
+            // Custom Actions
+            commands::git_execute_custom_action,
+            // Repo Config
+            commands::git_get_repo_config,
+            commands::git_save_repo_config,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

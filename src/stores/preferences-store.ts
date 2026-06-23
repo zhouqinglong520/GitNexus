@@ -1,6 +1,15 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import type { Preferences, GeneralPreferences, AppearancePreferences, GitPreferences, IntegrationPreferences } from '@/types';
+import type {
+  Preferences,
+  GeneralPreferences,
+  AppearancePreferences,
+  GitPreferences,
+  IntegrationPreferences,
+  NotificationPreferences,
+  SecurityPreferences,
+  NetworkPreferences,
+} from '@/types';
 
 interface PreferencesStore {
   preferences: Preferences;
@@ -8,6 +17,9 @@ interface PreferencesStore {
   updateAppearance: (partial: Partial<AppearancePreferences>) => void;
   updateGit: (partial: Partial<GitPreferences>) => void;
   updateIntegration: (partial: Partial<IntegrationPreferences>) => void;
+  updateNotifications: (partial: Partial<NotificationPreferences>) => void;
+  updateSecurity: (partial: Partial<SecurityPreferences>) => void;
+  updateNetwork: (partial: Partial<NetworkPreferences>) => void;
   resetToDefaults: () => void;
 }
 
@@ -46,6 +58,26 @@ const defaultPreferences: Preferences = {
     diff_tool: '',
     editor: '',
     file_manager: '',
+  },
+  notifications: {
+    enabled: true,
+    sound_enabled: false,
+    duration: 5,
+    position: 'top-right',
+  },
+  security: {
+    ssh_key_path: '',
+    ssh_keys: [],
+    gpg_key_path: '',
+    credential_cache: true,
+  },
+  network: {
+    proxy_host: '',
+    proxy_port: 0,
+    proxy_username: '',
+    proxy_password: '',
+    ssl_verify: true,
+    connection_timeout: 30,
   },
 };
 
@@ -86,6 +118,33 @@ export const usePreferencesStore = create<PreferencesStore>()(
           preferences: {
             ...s.preferences,
             integration: { ...s.preferences.integration, ...partial },
+          },
+        }));
+      },
+
+      updateNotifications: (partial: Partial<NotificationPreferences>) => {
+        set((s) => ({
+          preferences: {
+            ...s.preferences,
+            notifications: { ...s.preferences.notifications, ...partial },
+          },
+        }));
+      },
+
+      updateSecurity: (partial: Partial<SecurityPreferences>) => {
+        set((s) => ({
+          preferences: {
+            ...s.preferences,
+            security: { ...s.preferences.security, ...partial },
+          },
+        }));
+      },
+
+      updateNetwork: (partial: Partial<NetworkPreferences>) => {
+        set((s) => ({
+          preferences: {
+            ...s.preferences,
+            network: { ...s.preferences.network, ...partial },
           },
         }));
       },

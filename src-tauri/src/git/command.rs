@@ -126,6 +126,7 @@ impl GitCommand {
     /// Execute a git command synchronously (blocking), read all stdout to end.
     pub fn read_to_end(&self, args: &[&str]) -> Result<String, GitError> {
         use std::process::Command as StdCommand;
+        use std::time::Instant;
 
         let mut cmd = StdCommand::new("git");
         cmd.arg("--no-pager")
@@ -137,16 +138,34 @@ impl GitCommand {
             .stdout(Stdio::piped())
             .stderr(Stdio::piped());
 
+        let start = Instant::now();
+
         let output = cmd
             .output()
             .map_err(|e| GitError::ProcessError(e.to_string()))?;
 
+        let elapsed = start.elapsed().as_millis() as u64;
+
+        let exit_code = output.status.code().unwrap_or(-1);
+        let stdout_str = String::from_utf8_lossy(&output.stdout).to_string();
+        let stderr_str = String::from_utf8_lossy(&output.stderr).to_string();
+
+        // Record command log
+        let entry = crate::git::command_log::create_log_entry(
+            "git",
+            args,
+            &self.repo_path,
+            exit_code,
+            elapsed,
+            &stdout_str,
+            &stderr_str,
+        );
+        crate::git::command_log::log_command(entry);
+
         if output.status.success() {
-            Ok(String::from_utf8_lossy(&output.stdout).to_string())
+            Ok(stdout_str)
         } else {
-            Err(GitError::CommandError(
-                String::from_utf8_lossy(&output.stderr).to_string(),
-            ))
+            Err(GitError::CommandError(stderr_str))
         }
     }
 

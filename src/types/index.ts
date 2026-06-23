@@ -88,15 +88,8 @@ export type FileStatus =
   | 'Unmerged'
   | 'Broken';
 
-/** Diff result (matches backend DiffResult struct) */
-export interface DiffResult {
-  diff: string;
-  old_ref: string | null;
-  new_ref: string | null;
-  file_count: number;
-  insertions: number;
-  deletions: number;
-}
+/** Diff result - backend returns Result<String, String> (plain string) */
+export type DiffResult = string;
 
 /** Diff stats */
 export interface DiffStats {
@@ -180,6 +173,44 @@ export interface Submodule {
   url: string;
   branch: string | null;
   sha: string;
+}
+
+/** Commit detail (matches backend CommitDetail struct) */
+export interface CommitDetail {
+  sha: string;
+  parents: string[];
+  refs: string;
+  author_name: string;
+  author_email: string;
+  author_time: number;
+  committer_name: string;
+  committer_email: string;
+  committer_time: number;
+  subject: string;
+  body: string;
+}
+
+/** Worktree information (matches backend Worktree struct) */
+export interface Worktree {
+  name: string;
+  path: string;
+  branch: string;
+  is_main: boolean;
+  is_locked: boolean;
+  is_prunable: boolean;
+}
+
+/** Repository statistics (matches backend RepositoryStats struct) */
+export interface RepositoryStats {
+  total_commits: number;
+  total_authors: number;
+  total_branches: number;
+  total_tags: number;
+  total_remotes: number;
+  total_stashes: number;
+  total_worktrees: number;
+  first_commit_time: number | null;
+  last_commit_time: number | null;
 }
 
 // ============================================================
@@ -278,6 +309,9 @@ export interface Preferences {
   appearance: AppearancePreferences;
   git: GitPreferences;
   integration: IntegrationPreferences;
+  notifications: NotificationPreferences;
+  security: SecurityPreferences;
+  network: NetworkPreferences;
 }
 
 export interface GeneralPreferences {
@@ -317,6 +351,29 @@ export interface IntegrationPreferences {
   diff_tool: string;
   editor: string;
   file_manager: string;
+}
+
+export interface NotificationPreferences {
+  enabled: boolean;
+  sound_enabled: boolean;
+  duration: number; // seconds
+  position: 'top-right' | 'top-left' | 'bottom-right' | 'bottom-left';
+}
+
+export interface SecurityPreferences {
+  ssh_key_path: string;
+  ssh_keys: string[]; // list of known SSH key paths
+  gpg_key_path: string;
+  credential_cache: boolean;
+}
+
+export interface NetworkPreferences {
+  proxy_host: string;
+  proxy_port: number;
+  proxy_username: string;
+  proxy_password: string;
+  ssl_verify: boolean;
+  connection_timeout: number; // seconds
 }
 
 // ============================================================
@@ -461,4 +518,138 @@ export interface LogParams {
   since?: string;
   until?: string;
   path?: string;
+}
+
+// ============================================================
+// P1-1 New Types
+// ============================================================
+
+/** In-progress git operation state */
+export interface InProgressState {
+  type: 'merge' | 'rebase' | 'cherry_pick' | 'revert' | 'bisect' | 'none';
+  details: string;
+  current_commit?: string;
+  current_step?: number;
+  total_steps?: number;
+}
+
+/** Conflict file information */
+export interface ConflictFile {
+  path: string;
+  ours_content: string;
+  theirs_content: string;
+  base_content?: string;
+  resolved: boolean;
+}
+
+/** Search parameters for commit search */
+export interface SearchParams {
+  query?: string;
+  author?: string;
+  since?: string;
+  until?: string;
+}
+
+/** Extended repository statistics (with file count and repo size) */
+export interface ExtendedRepositoryStats extends RepositoryStats {
+  total_files: number;
+  repo_size: string;
+  author_commits?: AuthorCommitStats[];
+}
+
+/** Per-author commit statistics */
+export interface AuthorCommitStats {
+  author_name: string;
+  author_email: string;
+  commit_count: number;
+}
+
+// ============================================================
+// LFS Types
+// ============================================================
+
+/** LFS lock information (matches backend LfsLock struct) */
+export interface LfsLock {
+  file: string;
+  locked_by: string | null;
+  locked_at: string | null;
+}
+
+// ============================================================
+// File Watcher Types
+// ============================================================
+
+/** File system change event from the watcher */
+export interface FsChangeEvent {
+  type: 'WorkingCopyChanged' | 'BranchChanged' | 'StashChanged' | 'TagChanged' | 'SubmoduleChanged' | 'ConfigChanged';
+}
+
+// ============================================================
+// Command Log Types
+// ============================================================
+
+/** A single command log entry (matches backend CommandLogEntry) */
+export interface CommandLogEntry {
+  id: number;
+  timestamp: number;
+  command: string;
+  args: string;
+  working_dir: string;
+  exit_code: number;
+  duration_ms: number;
+  success: boolean;
+  output: string;
+  error: string;
+}
+
+// ============================================================
+// Custom Action Types
+// ============================================================
+
+/** A user-defined custom action (matches backend CustomAction) */
+export interface CustomAction {
+  id: string;
+  name: string;
+  command: string;
+  working_directory: string;
+  scope: string;
+  variables: CustomActionVariable[];
+  wait_for_completion: boolean;
+}
+
+/** Variable definition for a custom action */
+export interface CustomActionVariable {
+  name: string;
+  control_type: 'textbox' | 'path_selector' | 'checkbox' | 'combobox';
+  default_value: string;
+  options: string[];
+}
+
+// ============================================================
+// Repo Config Types
+// ============================================================
+
+/** Per-repository configuration (matches backend RepoConfig) */
+export interface RepoConfig {
+  default_remote?: string | null;
+  merge_mode?: string | null;
+  submodule_auto_update?: boolean | null;
+  commit_types?: CommitType[] | null;
+  commit_template?: string | null;
+  ai_service?: string | null;
+  custom_actions?: CustomAction[] | null;
+  issue_tracking_rules?: IssueTrackingRule[] | null;
+}
+
+/** Commit type for structured commit messages */
+export interface CommitType {
+  name: string;
+  description: string;
+  emoji?: string | null;
+}
+
+/** Issue tracking rule */
+export interface IssueTrackingRule {
+  pattern: string;
+  url_template: string;
 }

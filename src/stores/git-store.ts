@@ -8,7 +8,6 @@ import type {
   Remote,
   Stash,
   Status,
-  DiffResult,
   BlameResult,
   BlameLine,
   LogParams,
@@ -33,6 +32,13 @@ import type {
   TagDeleteParams,
   RemoteAddParams,
   RemoteRemoveParams,
+  CommitDetail,
+  Worktree,
+  RepositoryStats,
+  InProgressState,
+  ConflictFile,
+  SearchParams,
+  LfsLock,
 } from '@/types';
 
 interface GitStore {
@@ -47,9 +53,13 @@ interface GitStore {
   remotes: Remote[];
   stashes: Stash[];
   status: Status | null;
-  diff: DiffResult | null;
+  diff: string | null;
   blame: BlameResult | null;
   selectedCommitId: string | null;
+  commitDetail: CommitDetail | null;
+  worktrees: Worktree[];
+  statistics: RepositoryStats | null;
+  inProgress: InProgressState | null;
 
   // Loading states
   loading: {
@@ -61,6 +71,10 @@ interface GitStore {
     status: boolean;
     diff: boolean;
     blame: boolean;
+    commitDetail: boolean;
+    worktrees: boolean;
+    statistics: boolean;
+    inProgress: boolean;
   };
 
   // Error states
@@ -73,6 +87,10 @@ interface GitStore {
     status: string | null;
     diff: string | null;
     blame: string | null;
+    commitDetail: string | null;
+    worktrees: string | null;
+    statistics: string | null;
+    inProgress: string | null;
   };
 
   // Fetch actions
@@ -86,6 +104,10 @@ interface GitStore {
   fetchDiffStaged: (file?: string) => Promise<void>;
   fetchDiffUnstaged: (file?: string) => Promise<void>;
   fetchBlame: (params: BlameParams) => Promise<void>;
+  fetchCommitDetail: (sha: string) => Promise<void>;
+  fetchWorktrees: () => Promise<void>;
+  fetchStatistics: () => Promise<void>;
+  fetchInProgress: () => Promise<void>;
   fetchAll: () => Promise<void>;
 
   // Mutation actions
@@ -125,9 +147,47 @@ interface GitStore {
   rebaseContinue: () => Promise<void>;
   rebaseSkip: () => Promise<void>;
   rebaseAbort: () => Promise<void>;
+  getConfig: (key: string) => Promise<string>;
+  setConfig: (key: string, value: string) => Promise<void>;
+  addWorktree: (path: string, refName: string) => Promise<void>;
+  removeWorktree: (path: string, force: boolean) => Promise<void>;
+  pruneWorktrees: () => Promise<void>;
+  createArchive: (output: string, refName: string, format: string) => Promise<void>;
   listSubmodules: () => Promise<void>;
   addSubmodule: (url: string, name?: string, branch?: string) => Promise<void>;
   updateSubmodule: (name?: string, init?: boolean, recursive?: boolean) => Promise<void>;
+
+  // Additional actions (P1-1)
+  searchCommits: (params: SearchParams) => Promise<Commit[]>;
+  getMergeConflicts: () => Promise<ConflictFile[]>;
+  assumeUnchanged: (files: string[], enable: boolean) => Promise<void>;
+  skipWorktree: (files: string[], enable: boolean) => Promise<void>;
+  addToGitignore: (patterns: string[]) => Promise<void>;
+  deleteFiles: (files: string[]) => Promise<void>;
+  savePatch: (sha: string, outputDir: string) => Promise<void>;
+  applyPatch: (patchFile: string) => Promise<void>;
+  getFileHistory: (file: string, limit: number) => Promise<Commit[]>;
+  getCommitChildren: (sha: string) => Promise<Commit[]>;
+  stashShow: (index: number) => Promise<string>;
+  editRemote: (name: string, newUrl: string) => Promise<void>;
+  deleteRemoteTag: (name: string, remote: string) => Promise<void>;
+  getGitVersion: () => Promise<string>;
+  openInFileManager: (path: string) => Promise<void>;
+  openInTerminal: (path: string) => Promise<void>;
+  openInBrowser: (url: string) => Promise<void>;
+
+  // LFS actions
+  lfsIsAvailable: () => Promise<boolean>;
+  lfsTrack: (pattern: string) => Promise<void>;
+  lfsUntrack: (pattern: string) => Promise<void>;
+  lfsListTracks: () => Promise<string[]>;
+  lfsFetch: (remote?: string, include?: string, exclude?: string) => Promise<void>;
+  lfsPull: (remote?: string, include?: string, exclude?: string) => Promise<void>;
+  lfsPush: (remote?: string, include?: string, exclude?: string, all?: boolean) => Promise<void>;
+  lfsPrune: (dryRun?: boolean) => Promise<string>;
+  lfsLock: (file: string) => Promise<void>;
+  lfsUnlock: (file: string, force?: boolean) => Promise<void>;
+  lfsListLocks: () => Promise<LfsLock[]>;
 
   // Selection
   setSelectedCommitId: (id: string | null) => void;
@@ -142,6 +202,10 @@ const initialLoading = {
   status: false,
   diff: false,
   blame: false,
+  commitDetail: false,
+  worktrees: false,
+  statistics: false,
+  inProgress: false,
 };
 
 const initialErrors = {
@@ -153,6 +217,10 @@ const initialErrors = {
   status: null,
   diff: null,
   blame: null,
+  commitDetail: null,
+  worktrees: null,
+  statistics: null,
+  inProgress: null,
 };
 
 /** Helper to get the current repo path, throwing if not set */
@@ -175,6 +243,10 @@ export const useGitStore = create<GitStore>((set, get) => ({
   diff: null,
   blame: null,
   selectedCommitId: null,
+  commitDetail: null,
+  worktrees: [],
+  statistics: null,
+  inProgress: null,
   loading: { ...initialLoading },
   errors: { ...initialErrors },
 
@@ -184,7 +256,7 @@ export const useGitStore = create<GitStore>((set, get) => ({
     try {
       const commits: Commit[] = await invoke('git_get_commits', {
         path,
-        branch: params?.author ?? null,
+        branch: params?.path ?? null,
         limit: params?.max_count ?? 200,
         offset: params?.skip ?? 0,
       });
@@ -265,7 +337,7 @@ export const useGitStore = create<GitStore>((set, get) => ({
     const path = requirePath(get());
     set((s) => ({ loading: { ...s.loading, diff: true }, errors: { ...s.errors, diff: null } }));
     try {
-      const diff: DiffResult = await invoke('git_get_diff', {
+      const diff: string = await invoke('git_get_diff', {
         path,
         oldRef: params.commit1 ?? null,
         newRef: params.commit2 ?? null,
@@ -283,7 +355,7 @@ export const useGitStore = create<GitStore>((set, get) => ({
     const path = requirePath(get());
     set((s) => ({ loading: { ...s.loading, diff: true }, errors: { ...s.errors, diff: null } }));
     try {
-      const diff: DiffResult = await invoke('git_get_diff_staged', { path, file: file ?? null });
+      const diff: string = await invoke('git_get_diff_staged', { path, file: file ?? null });
       set({ diff });
     } catch (e) {
       set((s) => ({ errors: { ...s.errors, diff: String(e) } }));
@@ -296,7 +368,7 @@ export const useGitStore = create<GitStore>((set, get) => ({
     const path = requirePath(get());
     set((s) => ({ loading: { ...s.loading, diff: true }, errors: { ...s.errors, diff: null } }));
     try {
-      const diff: DiffResult = await invoke('git_get_diff_unstaged', { path, file: file ?? null });
+      const diff: string = await invoke('git_get_diff_unstaged', { path, file: file ?? null });
       set({ diff });
     } catch (e) {
       set((s) => ({ errors: { ...s.errors, diff: String(e) } }));
@@ -322,6 +394,45 @@ export const useGitStore = create<GitStore>((set, get) => ({
       set((s) => ({ errors: { ...s.errors, blame: String(e) } }));
     } finally {
       set((s) => ({ loading: { ...s.loading, blame: false } }));
+    }
+  },
+
+  fetchCommitDetail: async (sha: string) => {
+    const path = requirePath(get());
+    set((s) => ({ loading: { ...s.loading, commitDetail: true }, errors: { ...s.errors, commitDetail: null } }));
+    try {
+      const detail: CommitDetail = await invoke('git_get_commit_detail', { path, sha });
+      set({ commitDetail: detail });
+    } catch (e) {
+      set((s) => ({ errors: { ...s.errors, commitDetail: String(e) } }));
+    } finally {
+      set((s) => ({ loading: { ...s.loading, commitDetail: false } }));
+    }
+  },
+
+  fetchWorktrees: async () => {
+    const path = requirePath(get());
+    set((s) => ({ loading: { ...s.loading, worktrees: true }, errors: { ...s.errors, worktrees: null } }));
+    try {
+      const worktrees: Worktree[] = await invoke('git_list_worktrees', { path });
+      set({ worktrees });
+    } catch (e) {
+      set((s) => ({ errors: { ...s.errors, worktrees: String(e) } }));
+    } finally {
+      set((s) => ({ loading: { ...s.loading, worktrees: false } }));
+    }
+  },
+
+  fetchStatistics: async () => {
+    const path = requirePath(get());
+    set((s) => ({ loading: { ...s.loading, statistics: true }, errors: { ...s.errors, statistics: null } }));
+    try {
+      const stats: RepositoryStats = await invoke('git_get_statistics', { path });
+      set({ statistics: stats });
+    } catch (e) {
+      set((s) => ({ errors: { ...s.errors, statistics: String(e) } }));
+    } finally {
+      set((s) => ({ loading: { ...s.loading, statistics: false } }));
     }
   },
 
@@ -380,17 +491,7 @@ export const useGitStore = create<GitStore>((set, get) => ({
 
   discard: async (paths: string[]) => {
     const path = requirePath(get());
-    // Backend has no dedicated discard command; use checkout -- <files> via reset + stage_all
-    // For now, stage all then reset hard on specific files is not possible.
-    // We use a workaround: stage the files, then checkout the HEAD version.
-    // The simplest approach: git checkout HEAD -- <files>
-    // Since backend doesn't have this, we'll use stage + reset as a fallback.
-    // Actually, the safest approach is to just stage the files and reset them.
-    // We'll invoke git_stage_all then git_reset with mode "hard" for the specific paths.
-    // Since there's no per-file reset, we'll just notify the user.
-    // For now, use stage_all + reset as a crude discard:
-    await invoke('git_stage', { path, files: paths });
-    await invoke('git_unstage_all', { path });
+    await invoke('git_discard_changes', { path, files: paths });
     await get().fetchStatus();
   },
 
@@ -443,10 +544,12 @@ export const useGitStore = create<GitStore>((set, get) => ({
 
   stash: async (params: StashParams) => {
     const path = requirePath(get());
+    // TODO: pass include_untracked once backend git_push_stash supports it
     await invoke('git_push_stash', {
       path,
       message: params.message || null,
       keepIndex: params.keep_index,
+      // includeUntracked: params.include_untracked,
     });
     await get().fetchStashes();
     await get().fetchStatus();
@@ -626,6 +729,39 @@ export const useGitStore = create<GitStore>((set, get) => ({
     await get().fetchAll();
   },
 
+  getConfig: async (key: string) => {
+    const path = requirePath(get());
+    return await invoke('git_get_config', { path, key });
+  },
+
+  setConfig: async (key: string, value: string) => {
+    const path = requirePath(get());
+    await invoke('git_set_config', { path, key, value });
+  },
+
+  addWorktree: async (path: string, refName: string) => {
+    const repoPath = requirePath(get());
+    await invoke('git_add_worktree', { path: repoPath, worktreePath: path, refName });
+    await get().fetchWorktrees();
+  },
+
+  removeWorktree: async (path: string, force: boolean) => {
+    const repoPath = requirePath(get());
+    await invoke('git_remove_worktree', { path: repoPath, worktreePath: path, force });
+    await get().fetchWorktrees();
+  },
+
+  pruneWorktrees: async () => {
+    const path = requirePath(get());
+    await invoke('git_prune_worktrees', { path });
+    await get().fetchWorktrees();
+  },
+
+  createArchive: async (output: string, refName: string, format: string) => {
+    const path = requirePath(get());
+    await invoke('git_create_archive', { path, output, refName, format });
+  },
+
   listSubmodules: async () => {
     const path = requirePath(get());
     const submodules = await invoke('git_list_submodules', { path });
@@ -655,5 +791,181 @@ export const useGitStore = create<GitStore>((set, get) => ({
 
   setSelectedCommitId: (id: string | null) => {
     set({ selectedCommitId: id });
+  },
+
+  fetchInProgress: async () => {
+    const path = requirePath(get());
+    set((s) => ({ loading: { ...s.loading, inProgress: true }, errors: { ...s.errors, inProgress: null } }));
+    try {
+      const state: InProgressState = await invoke('git_get_in_progress', { path });
+      set({ inProgress: state });
+    } catch (e) {
+      set((s) => ({ errors: { ...s.errors, inProgress: String(e) } }));
+    } finally {
+      set((s) => ({ loading: { ...s.loading, inProgress: false } }));
+    }
+  },
+
+  searchCommits: async (params: SearchParams) => {
+    const path = requirePath(get());
+    return await invoke('git_search_commits', {
+      path,
+      query: params.query ?? null,
+      author: params.author ?? null,
+      since: params.since ?? null,
+      until: params.until ?? null,
+    });
+  },
+
+  getMergeConflicts: async () => {
+    const path = requirePath(get());
+    return await invoke('git_get_merge_conflicts', { path });
+  },
+
+  assumeUnchanged: async (files: string[], enable: boolean) => {
+    const path = requirePath(get());
+    await invoke('git_assume_unchanged', { path, files, enable });
+    await get().fetchStatus();
+  },
+
+  skipWorktree: async (files: string[], enable: boolean) => {
+    const path = requirePath(get());
+    await invoke('git_skip_worktree', { path, files, enable });
+    await get().fetchStatus();
+  },
+
+  addToGitignore: async (patterns: string[]) => {
+    const path = requirePath(get());
+    await invoke('git_add_to_gitignore', { path, patterns });
+  },
+
+  deleteFiles: async (files: string[]) => {
+    const path = requirePath(get());
+    await invoke('git_delete_files', { path, files });
+    await get().fetchStatus();
+  },
+
+  savePatch: async (sha: string, outputDir: string) => {
+    const path = requirePath(get());
+    await invoke('git_save_patch', { path, sha, outputDir });
+  },
+
+  applyPatch: async (patchFile: string) => {
+    const path = requirePath(get());
+    await invoke('git_apply_patch', { path, patchFile });
+    await get().fetchAll();
+  },
+
+  getFileHistory: async (file: string, limit: number) => {
+    const path = requirePath(get());
+    return await invoke('git_get_file_history', { path, file, limit });
+  },
+
+  getCommitChildren: async (sha: string) => {
+    const path = requirePath(get());
+    return await invoke('git_get_commit_children', { path, sha });
+  },
+
+  stashShow: async (index: number) => {
+    const path = requirePath(get());
+    return await invoke('git_stash_show', { path, index });
+  },
+
+  editRemote: async (name: string, newUrl: string) => {
+    const path = requirePath(get());
+    await invoke('git_edit_remote', { path, name, newUrl });
+    await get().fetchRemotes();
+  },
+
+  deleteRemoteTag: async (name: string, remote: string) => {
+    const path = requirePath(get());
+    await invoke('git_delete_remote_tag', { path, name, remote });
+    await get().fetchTags();
+  },
+
+  getGitVersion: async () => {
+    return await invoke('git_get_version');
+  },
+
+  openInFileManager: async (path: string) => {
+    await invoke('open_in_file_manager', { path });
+  },
+
+  openInTerminal: async (path: string) => {
+    await invoke('open_in_terminal', { path });
+  },
+
+  openInBrowser: async (url: string) => {
+    await invoke('open_in_browser', { url });
+  },
+
+  lfsIsAvailable: async () => {
+    return await invoke<boolean>('git_lfs_is_available');
+  },
+
+  lfsTrack: async (pattern: string) => {
+    const path = requirePath(get());
+    await invoke('git_lfs_track', { path, pattern });
+  },
+
+  lfsUntrack: async (pattern: string) => {
+    const path = requirePath(get());
+    await invoke('git_lfs_untrack', { path, pattern });
+  },
+
+  lfsListTracks: async () => {
+    const path = requirePath(get());
+    return await invoke<string[]>('git_lfs_list_tracks', { path });
+  },
+
+  lfsFetch: async (remote?: string, include?: string, exclude?: string) => {
+    const path = requirePath(get());
+    await invoke('git_lfs_fetch', {
+      path,
+      remote: remote ?? null,
+      include: include ?? null,
+      exclude: exclude ?? null,
+    });
+  },
+
+  lfsPull: async (remote?: string, include?: string, exclude?: string) => {
+    const path = requirePath(get());
+    await invoke('git_lfs_pull', {
+      path,
+      remote: remote ?? null,
+      include: include ?? null,
+      exclude: exclude ?? null,
+    });
+  },
+
+  lfsPush: async (remote?: string, include?: string, exclude?: string, all?: boolean) => {
+    const path = requirePath(get());
+    await invoke('git_lfs_push', {
+      path,
+      remote: remote ?? null,
+      include: include ?? null,
+      exclude: exclude ?? null,
+      all: all ?? false,
+    });
+  },
+
+  lfsPrune: async (dryRun?: boolean) => {
+    const path = requirePath(get());
+    return await invoke<string>('git_lfs_prune', { path, dryRun: dryRun ?? false });
+  },
+
+  lfsLock: async (file: string) => {
+    const path = requirePath(get());
+    await invoke('git_lfs_lock', { path, file });
+  },
+
+  lfsUnlock: async (file: string, force?: boolean) => {
+    const path = requirePath(get());
+    await invoke('git_lfs_unlock', { path, file, force: force ?? false });
+  },
+
+  lfsListLocks: async () => {
+    const path = requirePath(get());
+    return await invoke<LfsLock[]>('git_lfs_list_locks', { path });
   },
 }));

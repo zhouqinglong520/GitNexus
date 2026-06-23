@@ -1,6 +1,8 @@
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { useGitStore } from '@/stores/git-store';
 import { useUIStore } from '@/stores/ui-store';
+import { useTranslation } from '@/i18n';
+import { DiffView } from '@/components/DiffView';
 import {
   FilePlus,
   FileMinus,
@@ -11,6 +13,7 @@ import {
   Minus,
 } from 'lucide-react';
 import type { StatusEntry, FileStatus, ContextMenuItem } from '@/types';
+import { parseDiff } from '@/utils/diff-parser';
 
 const STATUS_ICONS: Record<FileStatus, React.ReactNode> = {
   Modified: <FileEdit size={14} />,
@@ -66,11 +69,17 @@ export const WorkingCopy: React.FC = () => {
   const discard = useGitStore((s) => s.discard);
   const showContextMenu = useUIStore((s) => s.showContextMenu);
   const addNotification = useUIStore((s) => s.addNotification);
+  const { t } = useTranslation();
 
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
   const [commitMessage, setCommitMessage] = useState('');
   const [showStaged, setShowStaged] = useState(true);
   const [showUnstaged, setShowUnstaged] = useState(true);
+
+  const parsedDiffFiles = useMemo(() => {
+    if (!diff) return [];
+    return parseDiff(diff);
+  }, [diff]);
 
   useEffect(() => {
     fetchStatus();
@@ -116,25 +125,25 @@ export const WorkingCopy: React.FC = () => {
 
   const handleStageAll = useCallback(() => {
     stageAll().catch((err) => {
-      addNotification({ type: 'error', title: 'Stage all failed', message: String(err) });
+      addNotification({ type: 'error', title: t('workingCopy.stageAllFailed'), message: String(err) });
     });
   }, [stageAll, addNotification]);
 
   const handleUnstageAll = useCallback(() => {
     unstageAll().catch((err) => {
-      addNotification({ type: 'error', title: 'Unstage all failed', message: String(err) });
+      addNotification({ type: 'error', title: t('workingCopy.unstageAllFailed'), message: String(err) });
     });
   }, [unstageAll, addNotification]);
 
   const handleCommit = useCallback(async () => {
     if (!commitMessage.trim()) {
-      addNotification({ type: 'warning', title: 'Please enter a commit message' });
+      addNotification({ type: 'warning', title: t('workingCopy.noCommitMessage') });
       return;
     }
     try {
       await commit({ message: commitMessage, amend: false });
       setCommitMessage('');
-      addNotification({ type: 'success', title: 'Commit created' });
+      addNotification({ type: 'success', title: t('workingCopy.commitSuccess') });
     } catch (error) {
       addNotification({ type: 'error', title: 'Commit failed', message: String(error) });
     }
@@ -146,7 +155,7 @@ export const WorkingCopy: React.FC = () => {
       const items: ContextMenuItem[] = [
         {
           id: 'stage',
-          label: entry.staged ? 'Unstage' : 'Stage',
+          label: entry.staged ? t('workingCopy.unstage') : t('workingCopy.stage'),
           action: () => {
             if (entry.staged) {
               unstage({ paths: [entry.path] });
@@ -157,14 +166,14 @@ export const WorkingCopy: React.FC = () => {
         },
         {
           id: 'discard',
-          label: 'Discard changes',
+          label: t('workingCopy.discardChanges'),
           action: () => discard([entry.path]),
           disabled: entry.staged,
         },
         { id: 'sep', label: '', separator: true },
         {
           id: 'copy-path',
-          label: 'Copy file path',
+          label: t('workingCopy.copyFilePath'),
           action: () => navigator.clipboard.writeText(entry.path),
         },
       ];
@@ -194,7 +203,7 @@ export const WorkingCopy: React.FC = () => {
                 onClick={() => setShowStaged(!showStaged)}
               >
                 <span className="text-xs font-medium" style={{ color: 'var(--accent-green)' }}>
-                  Staged Changes ({staged.length})
+                  {t('workingCopy.staged')} ({staged.length})
                 </span>
                 <button
                   onClick={(e) => {
@@ -233,7 +242,7 @@ export const WorkingCopy: React.FC = () => {
                 onClick={() => setShowUnstaged(!showUnstaged)}
               >
                 <span className="text-xs font-medium" style={{ color: 'var(--accent-yellow)' }}>
-                  Changes ({unstaged.length + untracked.length})
+                  {t('workingCopy.unstaged')} ({unstaged.length + untracked.length})
                 </span>
                 <button
                   onClick={(e) => {
@@ -277,7 +286,7 @@ export const WorkingCopy: React.FC = () => {
             <div>
               <div className="px-3 py-1.5 border-b" style={{ borderColor: 'var(--border-color)' }}>
                 <span className="text-xs font-medium" style={{ color: 'var(--accent-red)' }}>
-                  Conflicts ({conflicts.length})
+                  {t('workingCopy.conflicts')} ({conflicts.length})
                 </span>
               </div>
               {conflicts.map((entry) => (
@@ -296,7 +305,7 @@ export const WorkingCopy: React.FC = () => {
           {staged.length === 0 && unstaged.length === 0 && untracked.length === 0 && conflicts.length === 0 && (
             <div className="flex flex-col items-center justify-center h-32 text-xs" style={{ color: 'var(--text-subtle)' }}>
               <GitCommit size={24} className="mb-2" />
-              <span>Working tree clean</span>
+              <span>{t('workingCopy.clean')}</span>
             </div>
           )}
         </div>
@@ -308,15 +317,13 @@ export const WorkingCopy: React.FC = () => {
         <div className="flex-1 overflow-auto">
           {diffLoading ? (
             <div className="flex items-center justify-center h-full" style={{ color: 'var(--text-subtle)' }}>
-              Loading diff...
+              {t('workingCopy.loadingDiff')}
             </div>
-          ) : diff && diff.diff ? (
-            <pre className="p-3 text-xs whitespace-pre-wrap" style={{ color: 'var(--text-primary)' }}>
-              {diff.diff}
-            </pre>
+          ) : parsedDiffFiles.length > 0 ? (
+            <DiffView files={parsedDiffFiles} filePath={selectedFile ?? undefined} />
           ) : (
             <div className="flex items-center justify-center h-full text-sm" style={{ color: 'var(--text-subtle)' }}>
-              Select a file to view changes
+              {t('workingCopy.selectFile')}
             </div>
           )}
         </div>
@@ -330,7 +337,7 @@ export const WorkingCopy: React.FC = () => {
           <textarea
             value={commitMessage}
             onChange={(e) => setCommitMessage(e.target.value)}
-            placeholder="Commit message..."
+            placeholder={t('workingCopy.commitMessage')}
             rows={3}
             className="w-full px-3 py-2 text-sm resize-none border-none outline-none"
             style={{
@@ -349,7 +356,7 @@ export const WorkingCopy: React.FC = () => {
           {/* Commit actions */}
           <div className="flex items-center justify-between px-3 py-2">
             <span className="text-xs" style={{ color: 'var(--text-subtle)' }}>
-              {staged.length} staged, {unstaged.length + untracked.length} unstaged
+              {staged.length} {t('workingCopy.stagedCount')}, {unstaged.length + untracked.length} {t('workingCopy.unstagedCount')}
             </span>
             <div className="flex items-center gap-2">
               <button
@@ -361,7 +368,7 @@ export const WorkingCopy: React.FC = () => {
                   color: commitMessage.trim() && staged.length > 0 ? 'var(--bg-base)' : 'var(--text-subtle)',
                 }}
               >
-                Commit
+                {t('workingCopy.commit')}
               </button>
             </div>
           </div>

@@ -5,6 +5,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { open } from '@tauri-apps/plugin-dialog';
 import { useRepositoryStore } from '@/stores/repository-store';
 import { useUIStore } from '@/stores/ui-store';
+import { useTranslation } from '@/i18n';
 
 interface PlatformEntry {
   name: string;
@@ -27,6 +28,7 @@ export const Welcome: React.FC = () => {
   const removeRecentRepo = useRepositoryStore((s) => s.removeRecentRepo);
   const loadRecentRepos = useRepositoryStore((s) => s.loadRecentRepos);
   const addNotification = useUIStore((s) => s.addNotification);
+  const { t } = useTranslation();
 
   const [cloneUrl, setCloneUrl] = useState('');
   const [cloneDest, setCloneDest] = useState('');
@@ -49,7 +51,7 @@ export const Welcome: React.FC = () => {
     } catch (error) {
       addNotification({
         type: 'error',
-        title: 'Failed to open repository',
+        title: t('welcome.openFailed'),
         message: String(error),
       });
     }
@@ -58,7 +60,7 @@ export const Welcome: React.FC = () => {
   const handleClone = async () => {
     if (!cloneUrl.trim()) return;
     try {
-      addNotification({ type: 'info', title: 'Cloning repository...', duration: 0 });
+      addNotification({ type: 'info', title: t('welcome.cloning'), duration: 0 });
       const destPath = cloneDest || '';
       await invoke('git_clone_repo', {
         url: cloneUrl,
@@ -66,7 +68,7 @@ export const Welcome: React.FC = () => {
         depth: null,
         branch: null,
       });
-      addNotification({ type: 'success', title: 'Repository cloned successfully' });
+      addNotification({ type: 'success', title: t('welcome.cloneSuccess') });
       setShowClone(false);
       setCloneUrl('');
       setCloneDest('');
@@ -76,7 +78,7 @@ export const Welcome: React.FC = () => {
         navigate('/repo');
       }
     } catch (error) {
-      addNotification({ type: 'error', title: 'Clone failed', message: String(error) });
+      addNotification({ type: 'error', title: t('welcome.cloneFailed'), message: String(error) });
     }
   };
 
@@ -88,7 +90,7 @@ export const Welcome: React.FC = () => {
         path: fullPath,
         isBare: false,
       });
-      addNotification({ type: 'success', title: 'Repository initialized' });
+      addNotification({ type: 'success', title: t('welcome.initSuccess') });
       setShowInit(false);
       setInitPath('');
       setInitName('');
@@ -96,7 +98,7 @@ export const Welcome: React.FC = () => {
       await openRepo(fullPath);
       navigate('/repo');
     } catch (error) {
-      addNotification({ type: 'error', title: 'Init failed', message: String(error) });
+      addNotification({ type: 'error', title: t('welcome.initFailed'), message: String(error) });
     }
   };
 
@@ -123,7 +125,7 @@ export const Welcome: React.FC = () => {
             GitNexus
           </h1>
           <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
-            A modern Git GUI client
+            {t('welcome.subtitle')}
           </p>
         </div>
 
@@ -132,8 +134,8 @@ export const Welcome: React.FC = () => {
           {/* Open Repository */}
           <ActionCard
             icon={<FolderOpen size={24} />}
-            title="Open Repository"
-            description="Open an existing local Git repository"
+            title={t('welcome.openRepo')}
+            description={t('welcome.openRepoDesc')}
             color="var(--accent-blue)"
             onClick={handleOpenRepo}
           />
@@ -141,8 +143,8 @@ export const Welcome: React.FC = () => {
           {/* Clone Repository */}
           <ActionCard
             icon={<GitFork size={24} />}
-            title="Clone Repository"
-            description="Clone a repository from remote"
+            title={t('welcome.cloneRepo')}
+            description={t('welcome.cloneRepoDesc')}
             color="var(--accent-green)"
             onClick={() => setShowClone(!showClone)}
           />
@@ -150,8 +152,8 @@ export const Welcome: React.FC = () => {
           {/* Initialize Repository */}
           <ActionCard
             icon={<Plus size={24} />}
-            title="Initialize"
-            description="Create a new Git repository"
+            title={t('welcome.initialize')}
+            description={t('welcome.initializeDesc')}
             color="var(--accent-mauve)"
             onClick={() => setShowInit(!showInit)}
           />
@@ -164,12 +166,12 @@ export const Welcome: React.FC = () => {
             style={{ backgroundColor: 'var(--bg-overlay)', borderColor: 'var(--border-color)' }}
           >
             <h3 className="text-sm font-medium mb-3" style={{ color: 'var(--text-primary)' }}>
-              Clone Repository
+              {t('welcome.cloneTitle')}
             </h3>
             <div className="flex flex-col gap-3">
               <input
                 type="text"
-                placeholder="Repository URL (e.g., https://github.com/user/repo.git)"
+                placeholder={t('welcome.cloneUrlPlaceholder')}
                 value={cloneUrl}
                 onChange={(e) => setCloneUrl(e.target.value)}
                 className="px-3 py-2 rounded border text-sm"
@@ -181,7 +183,7 @@ export const Welcome: React.FC = () => {
               />
               <input
                 type="text"
-                placeholder="Destination directory (optional)"
+                placeholder={t('welcome.cloneDestPlaceholder')}
                 value={cloneDest}
                 onChange={(e) => setCloneDest(e.target.value)}
                 className="px-3 py-2 rounded border text-sm"
@@ -197,14 +199,14 @@ export const Welcome: React.FC = () => {
                   className="px-4 py-2 rounded text-sm font-medium transition-colors"
                   style={{ backgroundColor: 'var(--accent-green)', color: 'var(--bg-base)' }}
                 >
-                  Clone
+                  {t('welcome.clone')}
                 </button>
                 <button
                   onClick={() => setShowClone(false)}
                   className="px-4 py-2 rounded text-sm transition-colors"
                   style={{ backgroundColor: 'var(--bg-surface)', color: 'var(--text-secondary)' }}
                 >
-                  Cancel
+                  {t('common.cancel')}
                 </button>
               </div>
             </div>
@@ -218,12 +220,12 @@ export const Welcome: React.FC = () => {
             style={{ backgroundColor: 'var(--bg-overlay)', borderColor: 'var(--border-color)' }}
           >
             <h3 className="text-sm font-medium mb-3" style={{ color: 'var(--text-primary)' }}>
-              Initialize Repository
+              {t('welcome.initTitle')}
             </h3>
             <div className="flex flex-col gap-3">
               <input
                 type="text"
-                placeholder="Parent directory path"
+                placeholder={t('welcome.initPathPlaceholder')}
                 value={initPath}
                 onChange={(e) => setInitPath(e.target.value)}
                 className="px-3 py-2 rounded border text-sm"
@@ -235,7 +237,7 @@ export const Welcome: React.FC = () => {
               />
               <input
                 type="text"
-                placeholder="Repository name"
+                placeholder={t('welcome.initNamePlaceholder')}
                 value={initName}
                 onChange={(e) => setInitName(e.target.value)}
                 className="px-3 py-2 rounded border text-sm"
@@ -251,14 +253,14 @@ export const Welcome: React.FC = () => {
                   className="px-4 py-2 rounded text-sm font-medium transition-colors"
                   style={{ backgroundColor: 'var(--accent-mauve)', color: 'var(--bg-base)' }}
                 >
-                  Initialize
+                  {t('welcome.initializeBtn')}
                 </button>
                 <button
                   onClick={() => setShowInit(false)}
                   className="px-4 py-2 rounded text-sm transition-colors"
                   style={{ backgroundColor: 'var(--bg-surface)', color: 'var(--text-secondary)' }}
                 >
-                  Cancel
+                  {t('common.cancel')}
                 </button>
               </div>
             </div>
@@ -269,7 +271,7 @@ export const Welcome: React.FC = () => {
         {recentRepos.length > 0 && (
           <div className="mb-10">
             <h2 className="text-sm font-medium mb-3" style={{ color: 'var(--text-secondary)' }}>
-              Recent Repositories
+              {t('welcome.recentRepos')}
             </h2>
             <div className="space-y-1">
               {recentRepos.map((repo) => (
@@ -301,7 +303,7 @@ export const Welcome: React.FC = () => {
         {/* Platform Shortcuts */}
         <div>
           <h2 className="text-sm font-medium mb-3" style={{ color: 'var(--text-secondary)' }}>
-            Quick Access
+            {t('welcome.quickAccess')}
           </h2>
           <div className="flex gap-3">
             {PLATFORMS.map((platform) => (
@@ -326,7 +328,7 @@ export const Welcome: React.FC = () => {
         {/* Keyboard shortcuts hint */}
         <div className="mt-10 text-center">
           <p className="text-xs" style={{ color: 'var(--text-subtle)' }}>
-            Press <kbd className="px-1.5 py-0.5 rounded text-xs" style={{ backgroundColor: 'var(--bg-overlay)', borderColor: 'var(--border-color)' }}>Ctrl+P</kbd> to open command palette
+            {t('welcome.commandPaletteHint')}
           </p>
         </div>
       </div>

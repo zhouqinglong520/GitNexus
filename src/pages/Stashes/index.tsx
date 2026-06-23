@@ -1,6 +1,7 @@
 import React, { useEffect, useCallback } from 'react';
 import { useGitStore } from '@/stores/git-store';
 import { useUIStore } from '@/stores/ui-store';
+import { useTranslation } from '@/i18n';
 import { Clock, RotateCcw, Trash2, Eye } from 'lucide-react';
 import type { ContextMenuItem } from '@/types';
 
@@ -13,6 +14,7 @@ export const Stashes: React.FC = () => {
   const applyStash = useGitStore((s) => s.applyStash);
   const showContextMenu = useUIStore((s) => s.showContextMenu);
   const addNotification = useUIStore((s) => s.addNotification);
+  const { t } = useTranslation();
 
   useEffect(() => {
     fetchStashes();
@@ -24,36 +26,36 @@ export const Stashes: React.FC = () => {
       const items: ContextMenuItem[] = [
         {
           id: 'apply',
-          label: 'Apply stash',
+          label: t('stashes.apply'),
           icon: <Eye size={12} />,
           action: () => {
             applyStash(index).catch((err) => {
-              addNotification({ type: 'error', title: 'Apply stash failed', message: String(err) });
+              addNotification({ type: 'error', title: t('stashes.applyFailed'), message: String(err) });
             });
-            addNotification({ type: 'info', title: 'Applying stash...' });
+            addNotification({ type: 'info', title: t('stashes.applying') });
           },
         },
         {
           id: 'pop',
-          label: 'Pop stash (apply & drop)',
+          label: t('stashes.pop'),
           icon: <RotateCcw size={12} />,
           action: () => {
             stashPop({ index }).catch((err) => {
-              addNotification({ type: 'error', title: 'Pop stash failed', message: String(err) });
+              addNotification({ type: 'error', title: t('stashes.popFailed'), message: String(err) });
             });
-            addNotification({ type: 'info', title: 'Popping stash...' });
+            addNotification({ type: 'info', title: t('stashes.popping') });
           },
         },
         { id: 'sep', label: '', separator: true },
         {
           id: 'drop',
-          label: 'Drop stash',
+          label: t('stashes.drop'),
           icon: <Trash2 size={12} />,
           action: () => {
             stashDrop({ index }).catch((err) => {
-              addNotification({ type: 'error', title: 'Drop stash failed', message: String(err) });
+              addNotification({ type: 'error', title: t('stashes.dropFailed'), message: String(err) });
             });
-            addNotification({ type: 'warning', title: 'Stash dropped' });
+            addNotification({ type: 'warning', title: t('stashes.dropped') });
           },
         },
       ];
@@ -74,8 +76,8 @@ export const Stashes: React.FC = () => {
     return (
       <div className="flex flex-col items-center justify-center h-full" style={{ color: 'var(--text-subtle)' }}>
         <Clock size={48} className="mb-3" />
-        <p className="text-sm">No stashes</p>
-        <p className="text-xs mt-1">Stashed changes will appear here</p>
+        <p className="text-sm">{t('stashes.noStashes')}</p>
+        <p className="text-xs mt-1">{t('stashes.noStashesDesc')}</p>
       </div>
     );
   }
@@ -110,26 +112,26 @@ export const Stashes: React.FC = () => {
             <button
               onClick={() => {
                 applyStash(stash.index).catch((err) => {
-                  addNotification({ type: 'error', title: 'Apply stash failed', message: String(err) });
+                  addNotification({ type: 'error', title: t('stashes.applyFailed'), message: String(err) });
                 });
-                addNotification({ type: 'info', title: 'Applying stash...' });
+                addNotification({ type: 'info', title: t('stashes.applying') });
               }}
               className="p-1.5 rounded transition-colors hover:bg-overlay"
               style={{ color: 'var(--accent-green)' }}
-              title="Apply stash"
+              title={t('stashes.apply')}
             >
               <RotateCcw size={14} />
             </button>
             <button
               onClick={() => {
                 stashDrop({ index: stash.index }).catch((err) => {
-                  addNotification({ type: 'error', title: 'Drop stash failed', message: String(err) });
+                  addNotification({ type: 'error', title: t('stashes.dropFailed'), message: String(err) });
                 });
-                addNotification({ type: 'warning', title: 'Stash dropped' });
+                addNotification({ type: 'warning', title: t('stashes.dropped') });
               }}
               className="p-1.5 rounded transition-colors hover:bg-overlay"
               style={{ color: 'var(--accent-red)' }}
-              title="Drop stash"
+              title={t('stashes.drop')}
             >
               <Trash2 size={14} />
             </button>

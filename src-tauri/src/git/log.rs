@@ -115,3 +115,116 @@ pub fn get_commit_detail(path: &str, sha: &str) -> Result<CommitDetail, GitError
         body,
     })
 }
+
+/// Get commit history for a specific file (follows renames).
+pub fn get_file_history(path: &str, file: &str, limit: u32) -> Result<Vec<Commit>, GitError> {
+    let git = GitCommand::new(path);
+
+    let limit_str = limit.to_string();
+    let args: Vec<&str> = vec![
+        "log",
+        "--follow",
+        "--format=%H%x00%P%x00%D%x00%an%x00%ae%x00%at%x00%s",
+        "-n",
+        &limit_str,
+        "--",
+        file,
+    ];
+
+    let output = git.read_to_end(&args)?;
+
+    let mut commits = Vec::new();
+    for line in output.lines() {
+        if line.is_empty() {
+            continue;
+        }
+        let parts: Vec<&str> = line.split('\0').collect();
+        if parts.len() < 7 {
+            continue;
+        }
+        let sha = parts[0].to_string();
+        let parents = if parts[1].is_empty() {
+            Vec::new()
+        } else {
+            parts[1].split_whitespace().map(|s| s.to_string()).collect()
+        };
+        let refs = parts[2].to_string();
+        let author_name = parts[3].to_string();
+        let author_email = parts[4].to_string();
+        let author_time: i64 = parts[5].parse().unwrap_or(0);
+        let subject = parts[6].to_string();
+
+        commits.push(Commit {
+            sha,
+            parents,
+            refs,
+            author_name,
+            author_email,
+            author_time,
+            subject,
+        });
+    }
+
+    Ok(commits)
+}
+
+/// Get the direct children (first-level descendant commits) of a given commit.
+pub fn get_commit_children(path: &str, sha: &str) -> Result<Vec<Commit>, GitError> {
+    let git = GitCommand::new(path);
+
+    let ancestry_range = format!("{}..HEAD", sha);
+    let args: Vec<&str> = vec![
+        "log",
+        "--all",
+        "--format=%H%x00%P%x00%D%x00%an%x00%ae%x00%at%x00%s",
+        "--ancestry-path",
+        &ancestry_range,
+    ];
+
+    let output = git.read_to_end(&args)?;
+
+    // We need to find commits whose parent list includes the given SHA.
+    // Parse all commits from the ancestry path, then filter for direct children.
+    let mut children = Vec::new();
+    for line in output.lines() {
+        if line.is_empty() {
+            continue;
+        }
+        let parts: Vec<&str> = line.split('\0').collect();
+        if parts.len() < 7 {
+            continue;
+        }
+        let commit_sha = parts[0].to_string();
+        let parents = if parts[1].is_empty() {
+            Vec::new()
+        } else {
+            parts[1].split_whitespace().map(|s| s.to_string()).collect()
+        };
+
+        // Direct child: this commit's parent is the target SHA
+        if parents.contains(&sha.to_string()) {
+            let refs = parts[2].to_string();
+            let author_name = parts[3].to_string();
+            let author_email = parts[4].to_string();
+            let author_time: i64 = parts[5].parse().unwrap_or(0);
+            let subject = parts[6].to_string();
+
+            children.push(Commit {
+                sha: commit_sha,
+                parents,
+                refs,
+                author_name,
+                author_email,
+                author_time,
+                subject,
+            });
+
+            // Only take the first layer of children
+            if children.len() >= 50 {
+                break;
+            }
+        }
+    }
+
+    Ok(children)
+}

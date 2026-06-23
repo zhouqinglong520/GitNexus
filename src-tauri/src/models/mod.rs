@@ -227,3 +227,119 @@ pub struct RepositoryStats {
     pub total_files: u64,
     pub repo_size: u64,
 }
+
+// ============================================================
+// In-progress operation state
+// ============================================================
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct InProgressState {
+    /// The type of in-progress operation (e.g., "merge", "rebase", "cherry-pick", "revert", "bisect").
+    /// Empty string if no operation is in progress.
+    pub operation: String,
+    /// Additional detail about the operation state.
+    pub detail: Option<String>,
+}
+
+// ============================================================
+// Conflict file
+// ============================================================
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ConflictFile {
+    /// Path to the conflicted file relative to the repository root.
+    pub path: String,
+}
+
+// ============================================================
+// GitFlow
+// ============================================================
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GitFlowBranches {
+    pub master: String,
+    pub develop: String,
+    pub feature: String,
+    pub release: String,
+    pub hotfix: String,
+    pub support: String,
+    pub version_tag_prefix: String,
+}
+
+impl Default for GitFlowBranches {
+    fn default() -> Self {
+        Self {
+            master: "master".to_string(),
+            develop: "develop".to_string(),
+            feature: "feature/".to_string(),
+            release: "release/".to_string(),
+            hotfix: "hotfix/".to_string(),
+            support: "support/".to_string(),
+            version_tag_prefix: String::new(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GitFlowFinishOptions {
+    pub fetch: bool,
+    pub rebase: bool,
+    pub keep_branch: bool,
+    pub push: bool,
+    pub message: Option<String>,
+}
+
+impl Default for GitFlowFinishOptions {
+    fn default() -> Self {
+        Self {
+            fetch: false,
+            rebase: false,
+            keep_branch: false,
+            push: false,
+            message: None,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GitFlowStatus {
+    pub master: String,
+    pub develop: String,
+    pub features: Vec<String>,
+    pub releases: Vec<String>,
+    pub hotfixes: Vec<String>,
+    pub is_initialized: bool,
+}
+
+// ============================================================
+// LFS Lock
+// ============================================================
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LfsLock {
+    pub file: String,
+    pub locked_by: Option<String>,
+    pub locked_at: Option<String>,
+}
+
+// ============================================================
+// Bisect
+// ============================================================
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BisectResult {
+    pub output: String,
+    pub current_commit: Option<String>,
+    pub is_finished: bool,
+    pub found_commit: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BisectState {
+    pub good_revisions: Vec<String>,
+    pub bad_revisions: Vec<String>,
+    pub skipped_revisions: Vec<String>,
+    pub current_commit: Option<String>,
+    pub total_revisions: u32,
+    pub tested_revisions: u32,
+}

@@ -94,3 +94,11 @@ pub fn clear_stash(path: &str) -> Result<(), GitError> {
     git.read_to_end(&["stash", "clear"])?;
     Ok(())
 }
+
+/// Show the diff of a stash entry.
+pub fn show_stash(path: &str, index: u32) -> Result<String, GitError> {
+    let git = GitCommand::new(path);
+    let stash_ref = format!("stash@{{{}}}", index);
+    let output = git.read_to_end(&["stash", "show", "-p", &stash_ref])?;
+    Ok(output)
+}

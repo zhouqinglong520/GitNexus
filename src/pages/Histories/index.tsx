@@ -1,10 +1,13 @@
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { useGitStore } from '@/stores/git-store';
 import { useUIStore } from '@/stores/ui-store';
+import { useTranslation } from '@/i18n';
 import { CommitGraph } from '@/components/CommitGraph';
-import { GitCommit, User, Clock, Copy, Check } from 'lucide-react';
-import type { Commit, ContextMenuItem } from '@/types';
+import { DiffView } from '@/components/DiffView';
+import { GitCommit, User, Clock, Copy, Check, Archive } from 'lucide-react';
+import type { Commit, CommitDetail, ContextMenuItem } from '@/types';
 import { formatRelativeTime } from '@/utils/format';
+import { parseDiff } from '@/utils/diff-parser';
 
 /** Parse the refs string from backend into structured refs */
 function parseRefs(refsStr: string): { name: string; kind: string }[] {
@@ -22,20 +25,35 @@ export const Histories: React.FC = () => {
   const selectedCommitId = useGitStore((s) => s.selectedCommitId);
   const diff = useGitStore((s) => s.diff);
   const diffLoading = useGitStore((s) => s.loading.diff);
+  const commitDetail = useGitStore((s) => s.commitDetail);
+  const commitDetailLoading = useGitStore((s) => s.loading.commitDetail);
   const fetchCommits = useGitStore((s) => s.fetchCommits);
   const setSelectedCommitId = useGitStore((s) => s.setSelectedCommitId);
   const fetchDiff = useGitStore((s) => s.fetchDiff);
+  const fetchCommitDetail = useGitStore((s) => s.fetchCommitDetail);
   const checkout = useGitStore((s) => s.checkout);
   const cherryPick = useGitStore((s) => s.cherryPick);
   const revert = useGitStore((s) => s.revert);
   const createBranch = useGitStore((s) => s.createBranch);
   const createTag = useGitStore((s) => s.createTag);
+  const createArchive = useGitStore((s) => s.createArchive);
   const showContextMenu = useUIStore((s) => s.showContextMenu);
   const addNotification = useUIStore((s) => s.addNotification);
+  const { t } = useTranslation();
 
   const [showDetail, setShowDetail] = useState(true);
   const [detailCommit, setDetailCommit] = useState<Commit | null>(null);
   const [copiedHash, setCopiedHash] = useState<string | null>(null);
+  const [archiveDialogOpen, setArchiveDialogOpen] = useState(false);
+  const [archiveRef, setArchiveRef] = useState('');
+  const [archiveFormat, setArchiveFormat] = useState('zip');
+  const [archiveOutput, setArchiveOutput] = useState('');
+  const [archiveExporting, setArchiveExporting] = useState(false);
+
+  const parsedDiffFiles = useMemo(() => {
+    if (!diff) return [];
+    return parseDiff(diff);
+  }, [diff]);
 
   useEffect(() => {
     fetchCommits({ max_count: 200 });
@@ -54,9 +72,10 @@ export const Histories: React.FC = () => {
         setDetailCommit(commit);
         setShowDetail(true);
         fetchDiff({ commit1: commit.sha + '^', commit2: commit.sha });
+        fetchCommitDetail(commit.sha);
       }
     },
-    [commits, setSelectedCommitId, fetchDiff]
+    [commits, setSelectedCommitId, fetchDiff, fetchCommitDetail]
   );
 
   const handleContextMenu = useCallback(
@@ -65,7 +84,7 @@ export const Histories: React.FC = () => {
       const items: ContextMenuItem[] = [
         {
           id: 'copy-hash',
-          label: 'Copy commit hash',
+          label: t('histories.copyHash'),
           icon: <Copy size={12} />,
           action: () => {
             navigator.clipboard.writeText(commit.sha);
@@ -75,7 +94,7 @@ export const Histories: React.FC = () => {
         },
         {
           id: 'copy-short-hash',
-          label: 'Copy short hash',
+          label: t('histories.copyShortHash'),
           action: () => {
             navigator.clipboard.writeText(commit.sha.slice(0, 7));
           },
@@ -83,55 +102,83 @@ export const Histories: React.FC = () => {
         { id: 'sep1', label: '', separator: true },
         {
           id: 'checkout',
-          label: 'Checkout this commit',
+          label: t('histories.checkout'),
           action: () => {
             checkout({ branch: commit.sha, create: false, force: false }).catch((err) => {
-              addNotification({ type: 'error', title: 'Checkout failed', message: String(err) });
+              addNotification({ type: 'error', title: t('histories.checkoutFailed'), message: String(err) });
             });
           },
         },
         {
           id: 'cherry-pick',
-          label: 'Cherry-pick this commit',
+          label: t('histories.cherryPick'),
           action: () => {
             cherryPick({ commits: [commit.sha] }).catch((err) => {
-              addNotification({ type: 'error', title: 'Cherry-pick failed', message: String(err) });
+              addNotification({ type: 'error', title: t('histories.cherryPickFailed'), message: String(err) });
             });
           },
         },
         {
           id: 'revert',
-          label: 'Revert this commit',
+          label: t('histories.revert'),
           action: () => {
             revert(commit.sha).catch((err) => {
-              addNotification({ type: 'error', title: 'Revert failed', message: String(err) });
+              addNotification({ type: 'error', title: t('histories.revertFailed'), message: String(err) });
             });
           },
         },
         { id: 'sep2', label: '', separator: true },
         {
           id: 'create-branch',
-          label: 'Create branch from here',
+          label: t('histories.createBranch'),
           action: () => {
             createBranch({ name: '', ref: commit.sha }).catch((err) => {
-              addNotification({ type: 'error', title: 'Create branch failed', message: String(err) });
+              addNotification({ type: 'error', title: t('histories.createBranchFailed'), message: String(err) });
             });
           },
         },
         {
           id: 'create-tag',
-          label: 'Create tag here',
+          label: t('histories.createTag'),
           action: () => {
             createTag({ name: '', message: '', commit: commit.sha, annotated: false }).catch((err) => {
-              addNotification({ type: 'error', title: 'Create tag failed', message: String(err) });
+              addNotification({ type: 'error', title: t('histories.createTagFailed'), message: String(err) });
             });
+          },
+        },
+        { id: 'sep3', label: '', separator: true },
+        {
+          id: 'export-archive',
+          label: t('histories.exportArchive'),
+          icon: <Archive size={12} />,
+          action: () => {
+            setArchiveRef(commit.sha);
+            setArchiveOutput(`archive-${commit.sha.slice(0, 7)}.${archiveFormat}`);
+            setArchiveDialogOpen(true);
           },
         },
       ];
       showContextMenu(e.clientX, e.clientY, items);
     },
-    [showContextMenu, addNotification, checkout, cherryPick, revert, createBranch, createTag]
+    [showContextMenu, addNotification, checkout, cherryPick, revert, createBranch, createTag, archiveFormat]
   );
+
+  const handleExportArchive = useCallback(async () => {
+    if (!archiveOutput.trim()) {
+      addNotification({ type: 'warning', title: 'Please enter output path' });
+      return;
+    }
+    setArchiveExporting(true);
+    try {
+      await createArchive(archiveOutput, archiveRef, archiveFormat);
+      addNotification({ type: 'success', title: 'Archive created', message: archiveOutput });
+      setArchiveDialogOpen(false);
+    } catch (err) {
+      addNotification({ type: 'error', title: 'Archive creation failed', message: String(err) });
+    } finally {
+      setArchiveExporting(false);
+    }
+  }, [archiveOutput, archiveRef, archiveFormat, createArchive, addNotification]);
 
   const getRefColor = (kind: string) => {
     switch (kind) {
@@ -166,7 +213,7 @@ export const Histories: React.FC = () => {
               </div>
             ) : commits.length === 0 ? (
               <div className="flex items-center justify-center h-32 text-sm" style={{ color: 'var(--text-subtle)' }}>
-                No commits
+                {t('histories.noCommits')}
               </div>
             ) : (
               commits.map((commit) => {
@@ -251,7 +298,7 @@ export const Histories: React.FC = () => {
             {/* Detail header */}
             <div className="flex items-center justify-between px-3 py-2 border-b shrink-0" style={{ borderColor: 'var(--border-color)' }}>
               <span className="text-xs font-medium" style={{ color: 'var(--text-secondary)' }}>
-                Commit Detail
+                {t('histories.commitDetail')}
               </span>
               <button
                 onClick={() => setShowDetail(false)}
@@ -270,65 +317,158 @@ export const Histories: React.FC = () => {
                   {detailCommit.subject}
                 </span>
               </div>
-              <div className="space-y-1 text-xs" style={{ color: 'var(--text-secondary)' }}>
-                <div className="flex items-center gap-2">
-                  <span style={{ color: 'var(--text-subtle)', width: 60 }}>Author:</span>
-                  <span>{detailCommit.author_name} &lt;{detailCommit.author_email}&gt;</span>
+
+              {/* Use commitDetail if available for richer info */}
+              {commitDetailLoading ? (
+                <div className="flex items-center gap-2 text-xs" style={{ color: 'var(--text-subtle)' }}>
+                  <div className="animate-spin w-3 h-3 border-2 rounded-full" style={{ borderColor: 'var(--accent-blue)', borderTopColor: 'transparent' }} />
+                  {t('histories.loadingDetails')}
                 </div>
-                <div className="flex items-center gap-2">
-                  <span style={{ color: 'var(--text-subtle)', width: 60 }}>Date:</span>
-                  <span>{new Date(detailCommit.author_time * 1000).toLocaleString()}</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span style={{ color: 'var(--text-subtle)', width: 60 }}>Hash:</span>
-                  <span className="font-mono" style={{ color: 'var(--accent-yellow)' }}>
-                    {detailCommit.sha}
-                    <button
-                      onClick={() => {
-                        navigator.clipboard.writeText(detailCommit.sha);
-                        setCopiedHash(detailCommit.sha);
-                        setTimeout(() => setCopiedHash(null), 2000);
-                      }}
-                      className="ml-1 p-0.5 rounded hover:bg-overlay"
-                      style={{ color: 'var(--text-subtle)' }}
-                    >
-                      {copiedHash === detailCommit.sha ? <Check size={10} /> : <Copy size={10} />}
-                    </button>
-                  </span>
-                </div>
-                {detailCommit.parents.length > 0 && (
+              ) : commitDetail ? (
+                <div className="space-y-1 text-xs" style={{ color: 'var(--text-secondary)' }}>
                   <div className="flex items-center gap-2">
-                    <span style={{ color: 'var(--text-subtle)', width: 60 }}>Parents:</span>
+                    <span style={{ color: 'var(--text-subtle)', width: 80 }}>{t('histories.author')}:</span>
+                    <span>{commitDetail.author_name} &lt;{commitDetail.author_email}&gt;</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span style={{ color: 'var(--text-subtle)', width: 80 }}>{t('histories.authorDate')}:</span>
+                    <span>{new Date(commitDetail.author_time * 1000).toLocaleString()}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span style={{ color: 'var(--text-subtle)', width: 80 }}>{t('histories.committer')}:</span>
+                    <span>{commitDetail.committer_name} &lt;{commitDetail.committer_email}&gt;</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span style={{ color: 'var(--text-subtle)', width: 80 }}>{t('histories.commitDate')}:</span>
+                    <span>{new Date(commitDetail.committer_time * 1000).toLocaleString()}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span style={{ color: 'var(--text-subtle)', width: 80 }}>{t('histories.hash')}:</span>
                     <span className="font-mono" style={{ color: 'var(--accent-yellow)' }}>
-                      {detailCommit.parents.map((p) => p.slice(0, 8)).join(' ')}
+                      {commitDetail.sha}
+                      <button
+                        onClick={() => {
+                          navigator.clipboard.writeText(commitDetail.sha);
+                          setCopiedHash(commitDetail.sha);
+                          setTimeout(() => setCopiedHash(null), 2000);
+                        }}
+                        className="ml-1 p-0.5 rounded hover:bg-overlay"
+                        style={{ color: 'var(--text-subtle)' }}
+                      >
+                        {copiedHash === commitDetail.sha ? <Check size={10} /> : <Copy size={10} />}
+                      </button>
                     </span>
                   </div>
-                )}
-              </div>
-
-              {/* Refs */}
-              {(() => {
-                const refs = parseRefs(detailCommit.refs);
-                if (refs.length > 0) {
-                  return (
-                    <div className="flex flex-wrap gap-1 mt-2">
-                      {refs.map((ref) => (
-                        <span
-                          key={ref.name}
-                          className="px-2 py-0.5 rounded-full text-xs"
-                          style={{
-                            backgroundColor: `${getRefColor(ref.kind)}20`,
-                            color: getRefColor(ref.kind),
-                          }}
-                        >
-                          {ref.name}
-                        </span>
-                      ))}
+                  {commitDetail.parents.length > 0 && (
+                    <div className="flex items-center gap-2">
+                      <span style={{ color: 'var(--text-subtle)', width: 80 }}>{t('histories.parents')}:</span>
+                      <span className="font-mono" style={{ color: 'var(--accent-yellow)' }}>
+                        {commitDetail.parents.map((p) => p.slice(0, 8)).join(' ')}
+                      </span>
                     </div>
-                  );
-                }
-                return null;
-              })()}
+                  )}
+
+                  {/* Commit body */}
+                  {commitDetail.body && (
+                    <div className="mt-2">
+                      <div style={{ color: 'var(--text-subtle)', width: 80, marginBottom: 4 }}>{t('histories.body')}:</div>
+                      <pre
+                        className="whitespace-pre-wrap text-xs px-2 py-1.5 rounded"
+                        style={{
+                          color: 'var(--text-primary)',
+                          backgroundColor: 'var(--bg-overlay)',
+                          lineHeight: 1.6,
+                        }}
+                      >
+                        {commitDetail.body}
+                      </pre>
+                    </div>
+                  )}
+
+                  {/* Refs */}
+                  {(() => {
+                    const refs = parseRefs(commitDetail.refs);
+                    if (refs.length > 0) {
+                      return (
+                        <div className="flex flex-wrap gap-1 mt-2">
+                          {refs.map((ref) => (
+                            <span
+                              key={ref.name}
+                              className="px-2 py-0.5 rounded-full text-xs"
+                              style={{
+                                backgroundColor: `${getRefColor(ref.kind)}20`,
+                                color: getRefColor(ref.kind),
+                              }}
+                            >
+                              {ref.name}
+                            </span>
+                          ))}
+                        </div>
+                      );
+                    }
+                    return null;
+                  })()}
+                </div>
+              ) : (
+                /* Fallback to basic commit info when detail is not available */
+                <div className="space-y-1 text-xs" style={{ color: 'var(--text-secondary)' }}>
+                  <div className="flex items-center gap-2">
+                    <span style={{ color: 'var(--text-subtle)', width: 60 }}>Author:</span>
+                    <span>{detailCommit.author_name} &lt;{detailCommit.author_email}&gt;</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span style={{ color: 'var(--text-subtle)', width: 60 }}>Date:</span>
+                    <span>{new Date(detailCommit.author_time * 1000).toLocaleString()}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span style={{ color: 'var(--text-subtle)', width: 60 }}>Hash:</span>
+                    <span className="font-mono" style={{ color: 'var(--accent-yellow)' }}>
+                      {detailCommit.sha}
+                      <button
+                        onClick={() => {
+                          navigator.clipboard.writeText(detailCommit.sha);
+                          setCopiedHash(detailCommit.sha);
+                          setTimeout(() => setCopiedHash(null), 2000);
+                        }}
+                        className="ml-1 p-0.5 rounded hover:bg-overlay"
+                        style={{ color: 'var(--text-subtle)' }}
+                      >
+                        {copiedHash === detailCommit.sha ? <Check size={10} /> : <Copy size={10} />}
+                      </button>
+                    </span>
+                  </div>
+                  {detailCommit.parents.length > 0 && (
+                    <div className="flex items-center gap-2">
+                      <span style={{ color: 'var(--text-subtle)', width: 60 }}>Parents:</span>
+                      <span className="font-mono" style={{ color: 'var(--accent-yellow)' }}>
+                        {detailCommit.parents.map((p) => p.slice(0, 8)).join(' ')}
+                      </span>
+                    </div>
+                  )}
+                  {(() => {
+                    const refs = parseRefs(detailCommit.refs);
+                    if (refs.length > 0) {
+                      return (
+                        <div className="flex flex-wrap gap-1 mt-2">
+                          {refs.map((ref) => (
+                            <span
+                              key={ref.name}
+                              className="px-2 py-0.5 rounded-full text-xs"
+                              style={{
+                                backgroundColor: `${getRefColor(ref.kind)}20`,
+                                color: getRefColor(ref.kind),
+                              }}
+                            >
+                              {ref.name}
+                            </span>
+                          ))}
+                        </div>
+                      );
+                    }
+                    return null;
+                  })()}
+                </div>
+              )}
             </div>
 
             {/* Diff */}
@@ -337,19 +477,122 @@ export const Histories: React.FC = () => {
                 <div className="flex items-center justify-center h-32" style={{ color: 'var(--text-subtle)' }}>
                   Loading diff...
                 </div>
-              ) : diff && diff.diff ? (
-                <pre className="p-3 text-xs whitespace-pre-wrap" style={{ color: 'var(--text-primary)' }}>
-                  {diff.diff}
-                </pre>
+              ) : parsedDiffFiles.length > 0 ? (
+                <DiffView files={parsedDiffFiles} />
               ) : (
                 <div className="flex items-center justify-center h-32 text-sm" style={{ color: 'var(--text-subtle)' }}>
-                  No changes in this commit
+                  {t('histories.noChanges')}
                 </div>
               )}
             </div>
           </div>
         )}
       </div>
+
+      {/* Archive Export Dialog */}
+      {archiveDialogOpen && (
+        <div
+          className="fixed inset-0 flex items-center justify-center"
+          style={{ backgroundColor: 'rgba(0, 0, 0, 0.5)', zIndex: 1000 }}
+          onClick={() => setArchiveDialogOpen(false)}
+        >
+          <div
+            className="rounded-lg shadow-lg p-4"
+            style={{
+              backgroundColor: 'var(--bg-surface)',
+              border: '1px solid var(--border-color)',
+              width: 400,
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-sm font-semibold mb-3" style={{ color: 'var(--text-primary)' }}>
+              {t('histories.exportArchiveTitle')}
+            </h3>
+
+            <div className="space-y-3">
+              <div>
+                <label className="text-xs block mb-1" style={{ color: 'var(--text-secondary)' }}>
+                  {t('histories.reference')}
+                </label>
+                <input
+                  type="text"
+                  value={archiveRef}
+                  onChange={(e) => setArchiveRef(e.target.value)}
+                  className="w-full px-2 py-1.5 rounded border text-xs"
+                  style={{
+                    backgroundColor: 'var(--bg-overlay)',
+                    borderColor: 'var(--border-color)',
+                    color: 'var(--text-primary)',
+                  }}
+                />
+              </div>
+
+              <div>
+                <label className="text-xs block mb-1" style={{ color: 'var(--text-secondary)' }}>
+                  {t('histories.format')}
+                </label>
+                <div className="flex gap-2">
+                  {['zip', 'tar', 'tar.gz'].map((fmt) => (
+                    <button
+                      key={fmt}
+                      onClick={() => {
+                        setArchiveFormat(fmt);
+                        setArchiveOutput(`archive-${archiveRef.slice(0, 7)}.${fmt}`);
+                      }}
+                      className="px-3 py-1 rounded text-xs transition-colors"
+                      style={{
+                        backgroundColor: archiveFormat === fmt ? 'var(--accent-blue)' : 'var(--bg-overlay)',
+                        color: archiveFormat === fmt ? 'var(--bg-base)' : 'var(--text-secondary)',
+                      }}
+                    >
+                      {fmt}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs block mb-1" style={{ color: 'var(--text-secondary)' }}>
+                  {t('histories.outputPath')}
+                </label>
+                <input
+                  type="text"
+                  value={archiveOutput}
+                  onChange={(e) => setArchiveOutput(e.target.value)}
+                  className="w-full px-2 py-1.5 rounded border text-xs"
+                  style={{
+                    backgroundColor: 'var(--bg-overlay)',
+                    borderColor: 'var(--border-color)',
+                    color: 'var(--text-primary)',
+                  }}
+                  placeholder="/path/to/output.zip"
+                />
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 mt-4">
+              <button
+                onClick={() => setArchiveDialogOpen(false)}
+                className="px-3 py-1.5 rounded text-xs transition-colors"
+                style={{ color: 'var(--text-secondary)' }}
+              >
+                {t('common.cancel')}
+              </button>
+              <button
+                onClick={handleExportArchive}
+                disabled={archiveExporting || !archiveOutput.trim()}
+                className="px-3 py-1.5 rounded text-xs font-medium transition-colors disabled:opacity-50"
+                style={{
+                  backgroundColor: 'var(--accent-green)',
+                  color: 'var(--bg-base)',
+                }}
+              >
+                {archiveExporting ? t('histories.exporting') : t('histories.export')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

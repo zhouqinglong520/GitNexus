@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Settings as SettingsIcon,
@@ -12,8 +12,35 @@ import {
   Database,
   Info,
   ChevronRight,
+  Save,
+  RotateCcw,
+  Loader2,
+  Trash2,
+  FolderOpen,
+  Plus,
+  X,
+  Search,
+  Key,
+  FileText,
+  Play,
+  Pencil,
+  ClipboardList,
+  HardDrive,
+  Download,
+  Upload,
+  RefreshCw,
+  Lock,
+  Unlock,
+  Eraser,
 } from 'lucide-react';
 import { usePreferencesStore } from '@/stores/preferences-store';
+import { useGitStore } from '@/stores/git-store';
+import { useUIStore } from '@/stores/ui-store';
+import { invoke } from '@tauri-apps/api/core';
+import type { CommandLogEntry, CustomAction, CustomActionVariable } from '@/types';
+import { useTranslation } from '@/i18n';
+import { SUPPORTED_LOCALES } from '@/i18n';
+import type { Locale } from '@/i18n';
 
 type SettingsTab =
   | 'general'
@@ -25,19 +52,87 @@ type SettingsTab =
   | 'security'
   | 'storage'
   | 'network'
+  | 'lfs'
+  | 'command_log'
+  | 'custom_actions'
   | 'about';
 
-const TABS: { id: SettingsTab; label: string; icon: React.ReactNode }[] = [
-  { id: 'general', label: 'General', icon: <SettingsIcon size={16} /> },
-  { id: 'appearance', label: 'Appearance', icon: <Palette size={16} /> },
-  { id: 'git', label: 'Git', icon: <GitBranch size={16} /> },
-  { id: 'integration', label: 'Integration', icon: <Terminal size={16} /> },
-  { id: 'keybindings', label: 'Keybindings', icon: <Keyboard size={16} /> },
-  { id: 'notifications', label: 'Notifications', icon: <Bell size={16} /> },
-  { id: 'security', label: 'Security', icon: <Shield size={16} /> },
-  { id: 'storage', label: 'Storage', icon: <Database size={16} /> },
-  { id: 'network', label: 'Network', icon: <Globe size={16} /> },
-  { id: 'about', label: 'About', icon: <Info size={16} /> },
+const TABS: { id: SettingsTab; labelKey: string; icon: React.ReactNode }[] = [
+  { id: 'general', labelKey: 'settings.general', icon: <SettingsIcon size={16} /> },
+  { id: 'appearance', labelKey: 'settings.appearance', icon: <Palette size={16} /> },
+  { id: 'git', labelKey: 'settings.git', icon: <GitBranch size={16} /> },
+  { id: 'integration', labelKey: 'settings.integration', icon: <Terminal size={16} /> },
+  { id: 'keybindings', labelKey: 'settings.keybindings', icon: <Keyboard size={16} /> },
+  { id: 'notifications', labelKey: 'settings.notifications', icon: <Bell size={16} /> },
+  { id: 'security', labelKey: 'settings.security', icon: <Shield size={16} /> },
+  { id: 'storage', labelKey: 'settings.storage', icon: <Database size={16} /> },
+  { id: 'network', labelKey: 'settings.network', icon: <Globe size={16} /> },
+  { id: 'command_log', labelKey: 'settings.command_log', icon: <FileText size={16} /> },
+  { id: 'custom_actions', labelKey: 'settings.custom_actions', icon: <ClipboardList size={16} /> },
+  { id: 'about', labelKey: 'settings.about', icon: <Info size={16} /> },
+];
+
+/** Git config items that can be edited */
+const GIT_CONFIG_ITEMS = [
+  { key: 'user.name', label: 'User Name', description: 'Name used for commits', type: 'text' as const },
+  { key: 'user.email', label: 'User Email', description: 'Email used for commits', type: 'text' as const },
+  { key: 'core.autocrlf', label: 'Auto CRLF', description: 'Convert line endings (true/false/input)', type: 'select' as const, options: ['true', 'false', 'input'] },
+  { key: 'pull.rebase', label: 'Pull Rebase', description: 'Use rebase when pulling (true/false)', type: 'select' as const, options: ['true', 'false'] },
+  { key: 'merge.tool', label: 'Merge Tool', description: 'Default merge tool', type: 'text' as const },
+  { key: 'core.editor', label: 'Editor', description: 'Default text editor for git', type: 'text' as const },
+  { key: 'push.default', label: 'Push Default', description: 'Default push behavior', type: 'select' as const, options: ['upstream', 'current', 'matching', 'simple'] },
+  { key: 'init.defaultBranch', label: 'Default Branch', description: 'Default branch name for new repos', type: 'text' as const },
+  { key: 'core.excludesfile', label: 'Excludes File', description: 'Global gitignore file path', type: 'text' as const },
+  { key: 'color.ui', label: 'Color UI', description: 'Enable colored output (auto/always/never)', type: 'select' as const, options: ['auto', 'always', 'never'] },
+];
+
+/** Keybinding definition */
+interface KeybindingEntry {
+  name: string;
+  keys: string;
+  scope: string;
+  description: string;
+  category: string;
+}
+
+/** Complete keybinding map extracted from codebase */
+const KEYBINDINGS: KeybindingEntry[] = [
+  // Global
+  { name: 'Command Palette', keys: 'Ctrl+P', scope: 'Global', description: 'Open the command palette for quick actions', category: 'Global' },
+  { name: 'New Window', keys: 'Ctrl+Shift+N', scope: 'Global', description: 'Open a new application window', category: 'Global' },
+  { name: 'Open Repository', keys: 'Ctrl+O', scope: 'Global', description: 'Open a file dialog to select a repository', category: 'Global' },
+  { name: 'Toggle Sidebar', keys: 'Ctrl+B', scope: 'Global', description: 'Show or hide the sidebar panel', category: 'Global' },
+  { name: 'Settings', keys: 'Ctrl+,', scope: 'Global', description: 'Open the settings page', category: 'Global' },
+
+  // Git Operations
+  { name: 'Commit', keys: 'Ctrl+Enter', scope: 'Repository', description: 'Open the commit dialog with staged changes', category: 'Git Operations' },
+  { name: 'Push', keys: 'Ctrl+Shift+P', scope: 'Repository', description: 'Push current branch to remote', category: 'Git Operations' },
+  { name: 'Pull', keys: 'Ctrl+Shift+L', scope: 'Repository', description: 'Pull changes from remote', category: 'Git Operations' },
+  { name: 'Fetch', keys: 'Ctrl+Shift+F', scope: 'Repository', description: 'Fetch from remote without merging', category: 'Git Operations' },
+  { name: 'Stage All', keys: 'Ctrl+S', scope: 'Working Copy', description: 'Stage all changes in the working copy', category: 'Git Operations' },
+  { name: 'Discard Changes', keys: 'Ctrl+D', scope: 'Working Copy', description: 'Discard all unstaged changes', category: 'Git Operations' },
+  { name: 'Toggle Comment', keys: 'Ctrl+/', scope: 'Editor', description: 'Toggle line comment in editor', category: 'Git Operations' },
+  { name: 'Undo', keys: 'Ctrl+Z', scope: 'Global', description: 'Undo the last operation', category: 'Git Operations' },
+  { name: 'Redo', keys: 'Ctrl+Shift+Z', scope: 'Global', description: 'Redo the last undone operation', category: 'Git Operations' },
+
+  // Navigation
+  { name: 'Go to Histories', keys: 'Ctrl+1', scope: 'Repository', description: 'Switch to the commit history view', category: 'Navigation' },
+  { name: 'Go to Working Copy', keys: 'Ctrl+2', scope: 'Repository', description: 'Switch to the working copy view', category: 'Navigation' },
+  { name: 'Go to Stashes', keys: 'Ctrl+3', scope: 'Repository', description: 'Switch to the stash list view', category: 'Navigation' },
+  { name: 'Go to Next Tab', keys: 'Ctrl+Tab', scope: 'Global', description: 'Switch to the next open tab', category: 'Navigation' },
+  { name: 'Go to Previous Tab', keys: 'Ctrl+Shift+Tab', scope: 'Global', description: 'Switch to the previous open tab', category: 'Navigation' },
+  { name: 'Close Tab', keys: 'Ctrl+W', scope: 'Global', description: 'Close the current tab', category: 'Navigation' },
+
+  // Search
+  { name: 'Quick Search', keys: 'Ctrl+K', scope: 'Global', description: 'Open quick search for commits and files', category: 'Search' },
+  { name: 'Find in File', keys: 'Ctrl+F', scope: 'Editor', description: 'Find text in the current file view', category: 'Search' },
+
+  // View
+  { name: 'Toggle Bottom Panel', keys: 'Ctrl+J', scope: 'Global', description: 'Show or hide the bottom panel', category: 'View' },
+  { name: 'Toggle Diff Mode', keys: 'Ctrl+Shift+D', scope: 'Diff', description: 'Toggle between unified and side-by-side diff', category: 'View' },
+  { name: 'Zoom In', keys: 'Ctrl+=', scope: 'Global', description: 'Increase the UI font size', category: 'View' },
+  { name: 'Zoom Out', keys: 'Ctrl+-', scope: 'Global', description: 'Decrease the UI font size', category: 'View' },
+  { name: 'Reset Zoom', keys: 'Ctrl+0', scope: 'Global', description: 'Reset the UI font size to default', category: 'View' },
 ];
 
 export const Settings: React.FC = () => {
@@ -47,9 +142,441 @@ export const Settings: React.FC = () => {
   const updateAppearance = usePreferencesStore((s) => s.updateAppearance);
   const updateGit = usePreferencesStore((s) => s.updateGit);
   const updateIntegration = usePreferencesStore((s) => s.updateIntegration);
+  const updateNotifications = usePreferencesStore((s) => s.updateNotifications);
+  const updateSecurity = usePreferencesStore((s) => s.updateSecurity);
+  const updateNetwork = usePreferencesStore((s) => s.updateNetwork);
   const resetToDefaults = usePreferencesStore((s) => s.resetToDefaults);
 
+  const getConfig = useGitStore((s) => s.getConfig);
+  const setConfig = useGitStore((s) => s.setConfig);
+  const lfsIsAvailable = useGitStore((s) => s.lfsIsAvailable);
+  const lfsTrack = useGitStore((s) => s.lfsTrack);
+  const lfsUntrack = useGitStore((s) => s.lfsUntrack);
+  const lfsListTracks = useGitStore((s) => s.lfsListTracks);
+  const lfsFetch = useGitStore((s) => s.lfsFetch);
+  const lfsPull = useGitStore((s) => s.lfsPull);
+  const lfsPush = useGitStore((s) => s.lfsPush);
+  const lfsPrune = useGitStore((s) => s.lfsPrune);
+  const lfsUnlock = useGitStore((s) => s.lfsUnlock);
+  const lfsListLocks = useGitStore((s) => s.lfsListLocks);
+  const addNotification = useUIStore((s) => s.addNotification);
+
+  const { t, locale, setLocale } = useTranslation();
+
   const [activeTab, setActiveTab] = useState<SettingsTab>('general');
+
+  // Git config state
+  const [gitConfigValues, setGitConfigValues] = useState<Record<string, string>>({});
+  const [gitConfigLoading, setGitConfigLoading] = useState(false);
+  const [gitConfigSaving, setGitConfigSaving] = useState(false);
+  const [gitConfigLoaded, setGitConfigLoaded] = useState(false);
+
+  // Keybindings search
+  const [keybindingSearch, setKeybindingSearch] = useState('');
+
+  // Storage state
+  const [storageSize, setStorageSize] = useState<string>('Calculating...');
+  const [storageKeyCount, setStorageKeyCount] = useState(0);
+
+  // Security state
+  const [newSshKeyPath, setNewSshKeyPath] = useState('');
+
+  // Command Log state
+  const [commandLogs, setCommandLogs] = useState<CommandLogEntry[]>([]);
+  const [commandLogCount, setCommandLogCount] = useState(0);
+  const [commandLogLoading, setCommandLogLoading] = useState(false);
+
+  // Custom Actions state
+  const [customActions, setCustomActions] = useState<CustomAction[]>([]);
+  const [customActionsLoading, setCustomActionsLoading] = useState(false);
+  const [editingAction, setEditingAction] = useState<CustomAction | null>(null);
+  const [actionDialogOpen, setActionDialogOpen] = useState(false);
+  const [actionOutput, setActionOutput] = useState<string>('');
+
+  // LFS state
+  const [lfsAvailable, setLfsAvailable] = useState(false);
+  const [lfsTracks, setLfsTracks] = useState<string[]>([]);
+  const [lfsTracksLoading, setLfsTracksLoading] = useState(false);
+  const [lfsNewPattern, setLfsNewPattern] = useState('');
+  const [lfsLocks, setLfsLocks] = useState<Array<{ file: string; locked_by: string | null; locked_at: string | null }>>([]);
+  const [lfsLocksLoading, setLfsLocksLoading] = useState(false);
+  const [lfsOperating, setLfsOperating] = useState(false);
+  const [lfsOperatingAction, setLfsOperatingAction] = useState('');
+
+  // Load git config values when switching to git tab
+  useEffect(() => {
+    if (activeTab === 'git' && !gitConfigLoaded) {
+      loadGitConfig();
+    }
+  }, [activeTab, gitConfigLoaded]);
+
+  // Calculate localStorage usage when switching to storage tab
+  useEffect(() => {
+    if (activeTab === 'storage') {
+      calculateStorageUsage();
+    }
+  }, [activeTab]);
+
+  // Load LFS data when switching to lfs tab
+  useEffect(() => {
+    if (activeTab === 'lfs') {
+      handleLfsCheckAvailability();
+      handleLfsRefreshTracks();
+      handleLfsRefreshLocks();
+    }
+  }, [activeTab]);
+
+  const handleLfsCheckAvailability = useCallback(async () => {
+    try {
+      const available = await lfsIsAvailable();
+      setLfsAvailable(available);
+    } catch {
+      setLfsAvailable(false);
+    }
+  }, [lfsIsAvailable]);
+
+  const handleLfsRefreshTracks = useCallback(async () => {
+    setLfsTracksLoading(true);
+    try {
+      const tracks = await lfsListTracks();
+      setLfsTracks(tracks);
+    } catch (err) {
+      addNotification({ type: 'error', title: 'Failed to load LFS tracks', message: String(err) });
+      setLfsTracks([]);
+    } finally {
+      setLfsTracksLoading(false);
+    }
+  }, [lfsListTracks, addNotification]);
+
+  const handleLfsTrack = useCallback(async () => {
+    const pattern = lfsNewPattern.trim();
+    if (!pattern) return;
+    try {
+      await lfsTrack(pattern);
+      setLfsNewPattern('');
+      addNotification({ type: 'success', title: 'LFS track added', message: pattern });
+      await handleLfsRefreshTracks();
+    } catch (err) {
+      addNotification({ type: 'error', title: 'Failed to track pattern', message: String(err) });
+    }
+  }, [lfsNewPattern, lfsTrack, addNotification, handleLfsRefreshTracks]);
+
+  const handleLfsUntrack = useCallback(async (pattern: string) => {
+    try {
+      await lfsUntrack(pattern);
+      addNotification({ type: 'success', title: 'LFS track removed', message: pattern });
+      await handleLfsRefreshTracks();
+    } catch (err) {
+      addNotification({ type: 'error', title: 'Failed to untrack pattern', message: String(err) });
+    }
+  }, [lfsUntrack, addNotification, handleLfsRefreshTracks]);
+
+  const handleLfsOperation = useCallback(async (operation: 'fetch' | 'pull' | 'push' | 'prune') => {
+    setLfsOperating(true);
+    setLfsOperatingAction(operation.charAt(0).toUpperCase() + operation.slice(1));
+    try {
+      switch (operation) {
+        case 'fetch':
+          await lfsFetch();
+          addNotification({ type: 'success', title: 'LFS fetch completed' });
+          break;
+        case 'pull':
+          await lfsPull();
+          addNotification({ type: 'success', title: 'LFS pull completed' });
+          break;
+        case 'push':
+          await lfsPush();
+          addNotification({ type: 'success', title: 'LFS push completed' });
+          break;
+        case 'prune': {
+          const result = await lfsPrune(true);
+          addNotification({ type: 'success', title: 'LFS prune (dry-run)', message: result || 'No output' });
+          break;
+        }
+      }
+    } catch (err) {
+      addNotification({ type: 'error', title: `LFS ${operation} failed`, message: String(err) });
+    } finally {
+      setLfsOperating(false);
+      setLfsOperatingAction('');
+    }
+  }, [lfsFetch, lfsPull, lfsPush, lfsPrune, addNotification]);
+
+  const handleLfsRefreshLocks = useCallback(async () => {
+    setLfsLocksLoading(true);
+    try {
+      const locks = await lfsListLocks();
+      setLfsLocks(locks);
+    } catch (err) {
+      addNotification({ type: 'error', title: 'Failed to load LFS locks', message: String(err) });
+      setLfsLocks([]);
+    } finally {
+      setLfsLocksLoading(false);
+    }
+  }, [lfsListLocks, addNotification]);
+
+  const handleLfsUnlock = useCallback(async (file: string) => {
+    try {
+      await lfsUnlock(file, true);
+      addNotification({ type: 'success', title: 'LFS file unlocked', message: file });
+      await handleLfsRefreshLocks();
+    } catch (err) {
+      addNotification({ type: 'error', title: 'Failed to unlock file', message: String(err) });
+    }
+  }, [lfsUnlock, addNotification, handleLfsRefreshLocks]);
+
+  const loadGitConfig = useCallback(async () => {
+    setGitConfigLoading(true);
+    const values: Record<string, string> = {};
+    try {
+      for (const item of GIT_CONFIG_ITEMS) {
+        try {
+          const val = await getConfig(item.key);
+          values[item.key] = val;
+        } catch {
+          values[item.key] = '';
+        }
+      }
+      setGitConfigValues(values);
+      setGitConfigLoaded(true);
+    } catch (err) {
+      addNotification({ type: 'error', title: 'Failed to load git config', message: String(err) });
+    } finally {
+      setGitConfigLoading(false);
+    }
+  }, [getConfig, addNotification]);
+
+  const handleGitConfigSave = useCallback(async () => {
+    setGitConfigSaving(true);
+    try {
+      for (const item of GIT_CONFIG_ITEMS) {
+        const value = gitConfigValues[item.key];
+        if (value !== undefined && value !== '') {
+          try {
+            await setConfig(item.key, value);
+          } catch (err) {
+            addNotification({ type: 'warning', title: `Failed to set ${item.key}`, message: String(err) });
+          }
+        }
+      }
+      addNotification({ type: 'success', title: 'Git config saved' });
+    } catch (err) {
+      addNotification({ type: 'error', title: 'Failed to save git config', message: String(err) });
+    } finally {
+      setGitConfigSaving(false);
+    }
+  }, [gitConfigValues, setConfig, addNotification]);
+
+  const handleGitConfigReset = useCallback(() => {
+    setGitConfigLoaded(false);
+    loadGitConfig();
+  }, [loadGitConfig]);
+
+  const calculateStorageUsage = useCallback(() => {
+    try {
+      let totalSize = 0;
+      let keyCount = 0;
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key) {
+          const value = localStorage.getItem(key);
+          if (value) {
+            totalSize += key.length + value.length;
+          }
+          keyCount++;
+        }
+      }
+      // Convert to human-readable format (approximate bytes for UTF-16)
+      const bytes = totalSize * 2;
+      if (bytes < 1024) {
+        setStorageSize(`${bytes} B`);
+      } else if (bytes < 1024 * 1024) {
+        setStorageSize(`${(bytes / 1024).toFixed(2)} KB`);
+      } else {
+        setStorageSize(`${(bytes / (1024 * 1024)).toFixed(2)} MB`);
+      }
+      setStorageKeyCount(keyCount);
+    } catch {
+      setStorageSize('Unable to calculate');
+    }
+  }, []);
+
+  const handleClearCache = useCallback(() => {
+    try {
+      // Clear all localStorage except preferences
+      const preferencesData = localStorage.getItem('gitui-preferences');
+      localStorage.clear();
+      if (preferencesData) {
+        localStorage.setItem('gitui-preferences', preferencesData);
+      }
+      calculateStorageUsage();
+      addNotification({ type: 'success', title: 'Cache cleared', message: 'All cached data has been removed.' });
+    } catch (err) {
+      addNotification({ type: 'error', title: 'Failed to clear cache', message: String(err) });
+    }
+  }, [addNotification, calculateStorageUsage]);
+
+  const handleAddSshKey = useCallback(() => {
+    const trimmed = newSshKeyPath.trim();
+    if (!trimmed) return;
+    const currentKeys = preferences.security.ssh_keys;
+    if (currentKeys.includes(trimmed)) {
+      addNotification({ type: 'warning', title: 'SSH key already exists', message: 'This path is already in the SSH key list.' });
+      return;
+    }
+    updateSecurity({ ssh_keys: [...currentKeys, trimmed] });
+    setNewSshKeyPath('');
+    addNotification({ type: 'success', title: 'SSH key added', message: trimmed });
+  }, [newSshKeyPath, preferences.security.ssh_keys, updateSecurity, addNotification]);
+
+  const handleRemoveSshKey = useCallback((path: string) => {
+    updateSecurity({
+      ssh_keys: preferences.security.ssh_keys.filter((k) => k !== path),
+    });
+    addNotification({ type: 'success', title: 'SSH key removed', message: path });
+  }, [preferences.security.ssh_keys, updateSecurity, addNotification]);
+
+  // Command Log handlers
+  const loadCommandLogs = useCallback(async () => {
+    setCommandLogLoading(true);
+    try {
+      const [logs, count] = await Promise.all([
+        invoke<CommandLogEntry[]>('git_get_command_logs', { limit: 200, offset: 0 }),
+        invoke<number>('git_get_command_log_count'),
+      ]);
+      setCommandLogs(logs);
+      setCommandLogCount(count);
+    } catch (err) {
+      addNotification({ type: 'error', title: 'Failed to load command logs', message: String(err) });
+    } finally {
+      setCommandLogLoading(false);
+    }
+  }, [addNotification]);
+
+  const handleClearCommandLogs = useCallback(async () => {
+    try {
+      await invoke('git_clear_command_logs');
+      setCommandLogs([]);
+      setCommandLogCount(0);
+      addNotification({ type: 'success', title: 'Command logs cleared' });
+    } catch (err) {
+      addNotification({ type: 'error', title: 'Failed to clear command logs', message: String(err) });
+    }
+  }, [addNotification]);
+
+  // Custom Action handlers
+  const loadCustomActions = useCallback(async () => {
+    setCustomActionsLoading(true);
+    try {
+      const repoPath = useGitStore.getState().repoPath;
+      if (!repoPath) {
+        setCustomActions([]);
+        return;
+      }
+      const config = await invoke<any>('git_get_repo_config', { path: repoPath });
+      setCustomActions(config.custom_actions || []);
+    } catch (err) {
+      addNotification({ type: 'error', title: 'Failed to load custom actions', message: String(err) });
+    } finally {
+      setCustomActionsLoading(false);
+    }
+  }, [addNotification]);
+
+  const handleSaveCustomActions = useCallback(async (actions: CustomAction[]) => {
+    try {
+      const repoPath = useGitStore.getState().repoPath;
+      if (!repoPath) return;
+      const currentConfig = await invoke<any>('git_get_repo_config', { path: repoPath });
+      await invoke('git_save_repo_config', { path: repoPath, config: { ...currentConfig, custom_actions: actions } });
+      setCustomActions(actions);
+      addNotification({ type: 'success', title: 'Custom actions saved' });
+    } catch (err) {
+      addNotification({ type: 'error', title: 'Failed to save custom actions', message: String(err) });
+    }
+  }, [addNotification]);
+
+  const handleAddCustomAction = useCallback(() => {
+    const newAction: CustomAction = {
+      id: Date.now().toString(),
+      name: '',
+      command: '',
+      working_directory: 'repo',
+      scope: 'repository',
+      variables: [],
+      wait_for_completion: true,
+    };
+    setEditingAction(newAction);
+    setActionDialogOpen(true);
+  }, []);
+
+  const handleEditCustomAction = useCallback((action: CustomAction) => {
+    setEditingAction({ ...action });
+    setActionDialogOpen(true);
+  }, []);
+
+  const handleDeleteCustomAction = useCallback(async (id: string) => {
+    const updated = customActions.filter((a) => a.id !== id);
+    await handleSaveCustomActions(updated);
+  }, [customActions, handleSaveCustomActions]);
+
+  const handleSaveActionDialog = useCallback(async () => {
+    if (!editingAction) return;
+    if (!editingAction.name.trim() || !editingAction.command.trim()) {
+      addNotification({ type: 'warning', title: 'Name and command are required' });
+      return;
+    }
+    const existing = customActions.findIndex((a) => a.id === editingAction.id);
+    let updated: CustomAction[];
+    if (existing >= 0) {
+      updated = [...customActions];
+      updated[existing] = editingAction;
+    } else {
+      updated = [...customActions, editingAction];
+    }
+    await handleSaveCustomActions(updated);
+    setActionDialogOpen(false);
+    setEditingAction(null);
+  }, [editingAction, customActions, handleSaveCustomActions, addNotification]);
+
+  const handleTestAction = useCallback(async (action: CustomAction) => {
+    try {
+      const repoPath = useGitStore.getState().repoPath;
+      if (!repoPath) return;
+      setActionOutput('Running...');
+      const result = await invoke<string>('git_execute_custom_action', {
+        path: repoPath,
+        action,
+        variableValues: {},
+      });
+      setActionOutput(result || '(no output)');
+    } catch (err) {
+      setActionOutput(`Error: ${err}`);
+    }
+  }, [addNotification]);
+
+  // Filtered keybindings
+  const filteredKeybindings = useMemo(() => {
+    if (!keybindingSearch.trim()) return KEYBINDINGS;
+    const q = keybindingSearch.toLowerCase();
+    return KEYBINDINGS.filter(
+      (kb) =>
+        kb.name.toLowerCase().includes(q) ||
+        kb.keys.toLowerCase().includes(q) ||
+        kb.description.toLowerCase().includes(q) ||
+        kb.scope.toLowerCase().includes(q) ||
+        kb.category.toLowerCase().includes(q)
+    );
+  }, [keybindingSearch]);
+
+  // Grouped keybindings by category
+  const groupedKeybindings = useMemo(() => {
+    const groups: Record<string, KeybindingEntry[]> = {};
+    for (const kb of filteredKeybindings) {
+      if (!groups[kb.category]) groups[kb.category] = [];
+      groups[kb.category].push(kb);
+    }
+    return groups;
+  }, [filteredKeybindings]);
 
   const renderContent = () => {
     switch (activeTab) {
@@ -112,6 +639,20 @@ export const Settings: React.FC = () => {
       case 'appearance':
         return (
           <SettingsSection title="Appearance">
+            <SettingRow label="Language" description="Application display language">
+              <select
+                value={locale}
+                onChange={(e) => setLocale(e.target.value as Locale)}
+                className="px-2 py-1 rounded border text-sm"
+                style={{ backgroundColor: 'var(--bg-surface)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}
+              >
+                {SUPPORTED_LOCALES.map((loc) => (
+                  <option key={loc.value} value={loc.value}>
+                    {loc.label}
+                  </option>
+                ))}
+              </select>
+            </SettingRow>
             <SettingRow label="Theme" description="Application color theme">
               <select
                 value={preferences.appearance.theme}
@@ -193,63 +734,397 @@ export const Settings: React.FC = () => {
 
       case 'git':
         return (
-          <SettingsSection title="Git Configuration">
-            <SettingRow label="Default Branch Name" description="Name for new repository initial branch">
-              <input
-                type="text"
-                value={preferences.git.default_branch_name}
-                onChange={(e) => updateGit({ default_branch_name: e.target.value })}
-                className="px-2 py-1 rounded border text-sm"
-                style={{ backgroundColor: 'var(--bg-surface)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}
-              />
-            </SettingRow>
-            <SettingRow label="Push Default" description="Default push behavior">
-              <select
-                value={preferences.git.push_default}
-                onChange={(e) => updateGit({ push_default: e.target.value as any })}
-                className="px-2 py-1 rounded border text-sm"
-                style={{ backgroundColor: 'var(--bg-surface)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}
+          <div className="space-y-6">
+            {/* Git Preferences (local app settings) */}
+            <SettingsSection title="Git Preferences">
+              <SettingRow label="Default Branch Name" description="Name for new repository initial branch">
+                <input
+                  type="text"
+                  value={preferences.git.default_branch_name}
+                  onChange={(e) => updateGit({ default_branch_name: e.target.value })}
+                  className="px-2 py-1 rounded border text-sm"
+                  style={{ backgroundColor: 'var(--bg-surface)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}
+                />
+              </SettingRow>
+              <SettingRow label="Push Default" description="Default push behavior">
+                <select
+                  value={preferences.git.push_default}
+                  onChange={(e) => updateGit({ push_default: e.target.value as any })}
+                  className="px-2 py-1 rounded border text-sm"
+                  style={{ backgroundColor: 'var(--bg-surface)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}
+                >
+                  <option value="upstream">Upstream</option>
+                  <option value="current">Current</option>
+                  <option value="matching">Matching</option>
+                </select>
+              </SettingRow>
+              <SettingRow label="Rebase When Pull" description="Use rebase instead of merge when pulling">
+                <ToggleSwitch
+                  checked={preferences.git.rebase_when_pull}
+                  onChange={(v) => updateGit({ rebase_when_pull: v })}
+                />
+              </SettingRow>
+              <SettingRow label="Sign Commits" description="GPG sign commits by default">
+                <ToggleSwitch
+                  checked={preferences.git.sign_commits}
+                  onChange={(v) => updateGit({ sign_commits: v })}
+                />
+              </SettingRow>
+              <SettingRow label="GPG Program" description="Path to GPG program">
+                <input
+                  type="text"
+                  value={preferences.git.gpg_program}
+                  onChange={(e) => updateGit({ gpg_program: e.target.value })}
+                  className="px-2 py-1 rounded border text-sm flex-1"
+                  style={{ backgroundColor: 'var(--bg-surface)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}
+                  placeholder="gpg"
+                />
+              </SettingRow>
+              <SettingRow label="Line Ending" description="Default line ending style">
+                <select
+                  value={preferences.git.line_ending}
+                  onChange={(e) => updateGit({ line_ending: e.target.value as any })}
+                  className="px-2 py-1 rounded border text-sm"
+                  style={{ backgroundColor: 'var(--bg-surface)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}
+                >
+                  <option value="auto">Auto (OS default)</option>
+                  <option value="lf">LF (Unix)</option>
+                  <option value="crlf">CRLF (Windows)</option>
+                </select>
+              </SettingRow>
+            </SettingsSection>
+
+            {/* Git Config (read from / write to git config) */}
+            <SettingsSection title="Git Configuration (git config)">
+              <div className="flex items-center justify-between mb-3">
+                <span className="text-xs" style={{ color: 'var(--text-subtle)' }}>
+                  Read from and write to git config. Changes take effect immediately.
+                </span>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={handleGitConfigReset}
+                    className="flex items-center gap-1 px-2 py-1 rounded text-xs transition-colors"
+                    style={{ color: 'var(--text-secondary)' }}
+                    title="Reload from git"
+                  >
+                    <RotateCcw size={12} />
+                    Reload
+                  </button>
+                  <button
+                    onClick={handleGitConfigSave}
+                    disabled={gitConfigSaving}
+                    className="flex items-center gap-1 px-3 py-1 rounded text-xs font-medium transition-colors disabled:opacity-50"
+                    style={{ backgroundColor: 'var(--accent-green)', color: 'var(--bg-base)' }}
+                  >
+                    {gitConfigSaving ? (
+                      <>
+                        <Loader2 size={12} className="animate-spin" />
+                        Saving...
+                      </>
+                    ) : (
+                      <>
+                        <Save size={12} />
+                        Save
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+
+              {gitConfigLoading ? (
+                <div className="flex items-center justify-center py-8" style={{ color: 'var(--text-subtle)' }}>
+                  <Loader2 size={16} className="animate-spin mr-2" />
+                  Loading git config...
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {GIT_CONFIG_ITEMS.map((item) => (
+                    <div
+                      key={item.key}
+                      className="flex items-start gap-4 px-3 py-2 rounded"
+                      style={{ backgroundColor: 'var(--bg-overlay)' }}
+                    >
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
+                            {item.label}
+                          </span>
+                          <span className="text-xs font-mono px-1.5 py-0.5 rounded" style={{ backgroundColor: 'var(--bg-surface)', color: 'var(--accent-yellow)' }}>
+                            {item.key}
+                          </span>
+                        </div>
+                        <div className="text-xs mt-0.5" style={{ color: 'var(--text-subtle)' }}>
+                          {item.description}
+                        </div>
+                      </div>
+                      <div className="shrink-0" style={{ minWidth: 180 }}>
+                        {item.type === 'select' && item.options ? (
+                          <select
+                            value={gitConfigValues[item.key] || ''}
+                            onChange={(e) =>
+                              setGitConfigValues((prev) => ({ ...prev, [item.key]: e.target.value }))
+                            }
+                            className="w-full px-2 py-1 rounded border text-xs"
+                            style={{
+                              backgroundColor: 'var(--bg-surface)',
+                              borderColor: 'var(--border-color)',
+                              color: 'var(--text-primary)',
+                            }}
+                          >
+                            <option value="">(not set)</option>
+                            {item.options.map((opt) => (
+                              <option key={opt} value={opt}>
+                                {opt}
+                              </option>
+                            ))}
+                          </select>
+                        ) : (
+                          <input
+                            type="text"
+                            value={gitConfigValues[item.key] || ''}
+                            onChange={(e) =>
+                              setGitConfigValues((prev) => ({ ...prev, [item.key]: e.target.value }))
+                            }
+                            className="w-full px-2 py-1 rounded border text-xs"
+                            style={{
+                              backgroundColor: 'var(--bg-surface)',
+                              borderColor: 'var(--border-color)',
+                              color: 'var(--text-primary)',
+                            }}
+                            placeholder="(not set)"
+                          />
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </SettingsSection>
+          </div>
+        );
+
+      case 'lfs':
+        return (
+          <div className="space-y-6">
+            <SettingsSection title="Git LFS">
+              <div className="text-xs mb-3" style={{ color: 'var(--text-subtle)' }}>
+                Git Large File Storage (LFS) replaces large files such as audio samples, videos, datasets, and graphics with text pointers inside Git, while storing the file contents on a remote server.
+              </div>
+
+              {/* LFS availability status */}
+              <div
+                className="flex items-center gap-3 px-4 py-3 rounded"
+                style={{ backgroundColor: 'var(--bg-surface)' }}
               >
-                <option value="upstream">Upstream</option>
-                <option value="current">Current</option>
-                <option value="matching">Matching</option>
-              </select>
-            </SettingRow>
-            <SettingRow label="Rebase When Pull" description="Use rebase instead of merge when pulling">
-              <ToggleSwitch
-                checked={preferences.git.rebase_when_pull}
-                onChange={(v) => updateGit({ rebase_when_pull: v })}
-              />
-            </SettingRow>
-            <SettingRow label="Sign Commits" description="GPG sign commits by default">
-              <ToggleSwitch
-                checked={preferences.git.sign_commits}
-                onChange={(v) => updateGit({ sign_commits: v })}
-              />
-            </SettingRow>
-            <SettingRow label="GPG Program" description="Path to GPG program">
-              <input
-                type="text"
-                value={preferences.git.gpg_program}
-                onChange={(e) => updateGit({ gpg_program: e.target.value })}
-                className="px-2 py-1 rounded border text-sm flex-1"
-                style={{ backgroundColor: 'var(--bg-surface)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}
-                placeholder="gpg"
-              />
-            </SettingRow>
-            <SettingRow label="Line Ending" description="Default line ending style">
-              <select
-                value={preferences.git.line_ending}
-                onChange={(e) => updateGit({ line_ending: e.target.value as any })}
-                className="px-2 py-1 rounded border text-sm"
-                style={{ backgroundColor: 'var(--bg-surface)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}
-              >
-                <option value="auto">Auto (OS default)</option>
-                <option value="lf">LF (Unix)</option>
-                <option value="crlf">CRLF (Windows)</option>
-              </select>
-            </SettingRow>
-          </SettingsSection>
+                <div
+                  className="w-2.5 h-2.5 rounded-full"
+                  style={{
+                    backgroundColor: lfsAvailable ? 'var(--accent-green)' : 'var(--accent-red)',
+                  }}
+                />
+                <div>
+                  <div className="text-sm" style={{ color: 'var(--text-primary)' }}>
+                    {lfsAvailable ? 'git-lfs is available' : 'git-lfs is NOT installed'}
+                  </div>
+                  <div className="text-xs mt-0.5" style={{ color: 'var(--text-subtle)' }}>
+                    {lfsAvailable
+                      ? 'LFS operations are ready to use.'
+                      : 'Install git-lfs to enable LFS support.'}
+                  </div>
+                </div>
+              </div>
+            </SettingsSection>
+
+            {/* Tracked patterns */}
+            <SettingsSection title="Tracked Patterns">
+              <div className="flex items-center justify-between mb-3">
+                <span className="text-xs" style={{ color: 'var(--text-subtle)' }}>
+                  Patterns tracked by Git LFS (from .gitattributes)
+                </span>
+                <button
+                  onClick={handleLfsRefreshTracks}
+                  disabled={lfsTracksLoading}
+                  className="flex items-center gap-1 px-2 py-1 rounded text-xs transition-colors"
+                  style={{ color: 'var(--text-secondary)' }}
+                  title="Refresh tracked patterns"
+                >
+                  <RotateCcw size={12} className={lfsTracksLoading ? 'animate-spin' : ''} />
+                  Refresh
+                </button>
+              </div>
+
+              {lfsTracksLoading ? (
+                <div className="flex items-center justify-center py-4" style={{ color: 'var(--text-subtle)' }}>
+                  <Loader2 size={16} className="animate-spin mr-2" />
+                  Loading...
+                </div>
+              ) : (
+                <>
+                  <div className="space-y-1.5 mb-3">
+                    {lfsTracks.length > 0 ? (
+                      lfsTracks.map((pattern, idx) => (
+                        <div
+                          key={idx}
+                          className="flex items-center gap-2 px-3 py-2 rounded"
+                          style={{ backgroundColor: 'var(--bg-surface)' }}
+                        >
+                          <HardDrive size={14} style={{ color: 'var(--accent-blue)' }} />
+                          <span className="text-xs font-mono flex-1 truncate" style={{ color: 'var(--text-primary)' }}>
+                            {pattern}
+                          </span>
+                          <button
+                            onClick={() => handleLfsUntrack(pattern)}
+                            className="p-1 rounded transition-colors"
+                            style={{ color: 'var(--accent-red)' }}
+                            title="Untrack this pattern"
+                          >
+                            <X size={12} />
+                          </button>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="text-xs py-4 text-center rounded" style={{ color: 'var(--text-subtle)', backgroundColor: 'var(--bg-surface)' }}>
+                        No LFS patterns tracked.
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Add new pattern */}
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      value={lfsNewPattern}
+                      onChange={(e) => setLfsNewPattern(e.target.value)}
+                      className="flex-1 px-2 py-1 rounded border text-xs"
+                      style={{ backgroundColor: 'var(--bg-surface)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}
+                      placeholder="e.g., *.psd, *.zip, assets/*"
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') handleLfsTrack();
+                      }}
+                    />
+                    <button
+                      onClick={handleLfsTrack}
+                      disabled={!lfsNewPattern.trim() || !lfsAvailable}
+                      className="flex items-center gap-1 px-2 py-1 rounded text-xs font-medium transition-colors disabled:opacity-50"
+                      style={{ backgroundColor: 'var(--accent-blue)', color: 'var(--bg-base)' }}
+                    >
+                      <Plus size={12} />
+                      Track
+                    </button>
+                  </div>
+                </>
+              )}
+            </SettingsSection>
+
+            {/* LFS Operations */}
+            <SettingsSection title="LFS Operations">
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  onClick={() => handleLfsOperation('fetch')}
+                  disabled={!lfsAvailable || lfsOperating}
+                  className="flex items-center gap-2 px-3 py-2 rounded text-xs font-medium transition-colors disabled:opacity-50"
+                  style={{ backgroundColor: 'var(--bg-overlay)', color: 'var(--text-primary)', border: '1px solid var(--border-color)' }}
+                >
+                  <Download size={14} style={{ color: 'var(--accent-blue)' }} />
+                  Fetch LFS
+                </button>
+                <button
+                  onClick={() => handleLfsOperation('pull')}
+                  disabled={!lfsAvailable || lfsOperating}
+                  className="flex items-center gap-2 px-3 py-2 rounded text-xs font-medium transition-colors disabled:opacity-50"
+                  style={{ backgroundColor: 'var(--bg-overlay)', color: 'var(--text-primary)', border: '1px solid var(--border-color)' }}
+                >
+                  <Download size={14} style={{ color: 'var(--accent-green)' }} />
+                  Pull LFS
+                </button>
+                <button
+                  onClick={() => handleLfsOperation('push')}
+                  disabled={!lfsAvailable || lfsOperating}
+                  className="flex items-center gap-2 px-3 py-2 rounded text-xs font-medium transition-colors disabled:opacity-50"
+                  style={{ backgroundColor: 'var(--bg-overlay)', color: 'var(--text-primary)', border: '1px solid var(--border-color)' }}
+                >
+                  <Upload size={14} style={{ color: 'var(--accent-mauve)' }} />
+                  Push LFS
+                </button>
+                <button
+                  onClick={() => handleLfsOperation('prune')}
+                  disabled={!lfsAvailable || lfsOperating}
+                  className="flex items-center gap-2 px-3 py-2 rounded text-xs font-medium transition-colors disabled:opacity-50"
+                  style={{ backgroundColor: 'var(--bg-overlay)', color: 'var(--text-primary)', border: '1px solid var(--border-color)' }}
+                >
+                  <Eraser size={14} style={{ color: 'var(--accent-red)' }} />
+                  Prune LFS
+                </button>
+              </div>
+              {lfsOperating && (
+                <div className="flex items-center gap-2 mt-2 text-xs" style={{ color: 'var(--text-subtle)' }}>
+                  <Loader2 size={14} className="animate-spin" />
+                  {lfsOperatingAction}...
+                </div>
+              )}
+            </SettingsSection>
+
+            {/* LFS Locks */}
+            <SettingsSection title="LFS Locks">
+              <div className="flex items-center justify-between mb-3">
+                <span className="text-xs" style={{ color: 'var(--text-subtle)' }}>
+                  View and manage file locks
+                </span>
+                <button
+                  onClick={handleLfsRefreshLocks}
+                  disabled={lfsLocksLoading}
+                  className="flex items-center gap-1 px-2 py-1 rounded text-xs transition-colors"
+                  style={{ color: 'var(--text-secondary)' }}
+                  title="Refresh locks"
+                >
+                  <RefreshCw size={12} className={lfsLocksLoading ? 'animate-spin' : ''} />
+                  Refresh
+                </button>
+              </div>
+
+              {lfsLocksLoading ? (
+                <div className="flex items-center justify-center py-4" style={{ color: 'var(--text-subtle)' }}>
+                  <Loader2 size={16} className="animate-spin mr-2" />
+                  Loading locks...
+                </div>
+              ) : (
+                <div className="space-y-1.5">
+                  {lfsLocks.length > 0 ? (
+                    lfsLocks.map((lock, idx) => (
+                      <div
+                        key={idx}
+                        className="flex items-center gap-2 px-3 py-2 rounded"
+                        style={{ backgroundColor: 'var(--bg-surface)' }}
+                      >
+                        <Lock size={14} style={{ color: 'var(--accent-yellow)' }} />
+                        <div className="flex-1 min-w-0">
+                          <div className="text-xs font-mono truncate" style={{ color: 'var(--text-primary)' }}>
+                            {lock.file}
+                          </div>
+                          <div className="text-xs mt-0.5" style={{ color: 'var(--text-subtle)' }}>
+                            {lock.locked_by && <span>by {lock.locked_by}</span>}
+                            {lock.locked_by && lock.locked_at && <span> at {lock.locked_at}</span>}
+                          </div>
+                        </div>
+                        <button
+                          onClick={() => handleLfsUnlock(lock.file)}
+                          className="flex items-center gap-1 px-2 py-1 rounded text-xs transition-colors"
+                          style={{ color: 'var(--accent-red)' }}
+                          title="Unlock this file"
+                        >
+                          <Unlock size={12} />
+                        </button>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="text-xs py-4 text-center rounded" style={{ color: 'var(--text-subtle)', backgroundColor: 'var(--bg-surface)' }}>
+                      No active LFS locks.
+                    </div>
+                  )}
+                </div>
+              )}
+            </SettingsSection>
+          </div>
         );
 
       case 'integration':
@@ -308,122 +1183,912 @@ export const Settings: React.FC = () => {
           </SettingsSection>
         );
 
+      // ============================================================
+      // Keybindings Tab - Full implementation
+      // ============================================================
       case 'keybindings':
         return (
-          <SettingsSection title="Keyboard Shortcuts">
-            <div className="space-y-2">
-              {[
-                { keys: 'Ctrl+P', action: 'Open command palette' },
-                { keys: 'Ctrl+Shift+N', action: 'New window' },
-                { keys: 'Ctrl+O', action: 'Open repository' },
-                { keys: 'Ctrl+B', action: 'Toggle sidebar' },
-                { keys: 'Ctrl+Enter', action: 'Commit' },
-                { keys: 'Ctrl+Shift+P', action: 'Push' },
-                { keys: 'Ctrl+Shift+L', action: 'Pull' },
-                { keys: 'Ctrl+S', action: 'Stage all' },
-                { keys: 'Ctrl+D', action: 'Discard changes' },
-                { keys: 'Ctrl+/', action: 'Toggle comment' },
-              ].map((shortcut) => (
-                <div key={shortcut.keys} className="flex items-center justify-between py-1.5 px-2 rounded" style={{ backgroundColor: 'var(--bg-surface)' }}>
-                  <span className="text-sm" style={{ color: 'var(--text-primary)' }}>{shortcut.action}</span>
-                  <kbd className="px-2 py-0.5 rounded text-xs font-mono" style={{ backgroundColor: 'var(--bg-overlay)', color: 'var(--text-secondary)' }}>
-                    {shortcut.keys}
-                  </kbd>
+          <div className="space-y-4">
+            <SettingsSection title="Keyboard Shortcuts">
+              <div className="text-xs mb-3" style={{ color: 'var(--text-subtle)' }}>
+                Shortcuts are defined in code and cannot be edited at runtime. Modifying shortcuts requires code changes and a restart.
+              </div>
+
+              {/* Search bar */}
+              <div className="relative mb-4">
+                <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2" style={{ color: 'var(--text-subtle)' }} />
+                <input
+                  type="text"
+                  value={keybindingSearch}
+                  onChange={(e) => setKeybindingSearch(e.target.value)}
+                  placeholder="Search shortcuts by name, key, or description..."
+                  className="w-full pl-8 pr-3 py-1.5 rounded border text-sm"
+                  style={{
+                    backgroundColor: 'var(--bg-surface)',
+                    borderColor: 'var(--border-color)',
+                    color: 'var(--text-primary)',
+                  }}
+                />
+              </div>
+
+              {/* Summary */}
+              <div className="flex items-center gap-4 mb-4 text-xs" style={{ color: 'var(--text-subtle)' }}>
+                <span>{filteredKeybindings.length} shortcuts found</span>
+                <span>{Object.keys(groupedKeybindings).length} categories</span>
+              </div>
+
+              {/* Grouped keybinding list */}
+              {Object.entries(groupedKeybindings).map(([category, entries]) => (
+                <div key={category} className="mb-4">
+                  <div
+                    className="text-xs font-semibold uppercase tracking-wider mb-2 px-2 py-1 rounded"
+                    style={{ color: 'var(--accent-mauve)', backgroundColor: 'rgba(203, 166, 247, 0.08)' }}
+                  >
+                    {category}
+                  </div>
+                  <div className="space-y-1">
+                    {entries.map((kb) => (
+                      <div
+                        key={kb.name}
+                        className="flex items-center gap-3 px-3 py-2 rounded transition-colors"
+                        style={{ backgroundColor: 'var(--bg-surface)' }}
+                      >
+                        <div className="flex-1 min-w-0">
+                          <div className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
+                            {kb.name}
+                          </div>
+                          <div className="text-xs mt-0.5 truncate" style={{ color: 'var(--text-subtle)' }}>
+                            {kb.description}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <span
+                            className="text-xs px-1.5 py-0.5 rounded"
+                            style={{ backgroundColor: 'rgba(137, 180, 250, 0.1)', color: 'var(--accent-blue)' }}
+                          >
+                            {kb.scope}
+                          </span>
+                          <kbd
+                            className="px-2 py-0.5 rounded text-xs font-mono whitespace-nowrap"
+                            style={{
+                              backgroundColor: 'var(--bg-overlay)',
+                              color: 'var(--accent-yellow)',
+                              border: '1px solid var(--border-color)',
+                            }}
+                          >
+                            {kb.keys}
+                          </kbd>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               ))}
-            </div>
-          </SettingsSection>
+
+              {filteredKeybindings.length === 0 && (
+                <div className="text-center py-8 text-sm" style={{ color: 'var(--text-subtle)' }}>
+                  No shortcuts matching "{keybindingSearch}"
+                </div>
+              )}
+            </SettingsSection>
+          </div>
         );
 
+      // ============================================================
+      // Notifications Tab - Full implementation
+      // ============================================================
       case 'notifications':
         return (
-          <SettingsSection title="Notification Settings">
-            <SettingRow label="Show Notifications" description="Enable desktop notifications">
-              <ToggleSwitch checked={true} onChange={() => {}} />
-            </SettingRow>
-            <SettingRow label="Sound Effects" description="Play sounds for notifications">
-              <ToggleSwitch checked={false} onChange={() => {}} />
-            </SettingRow>
-            <SettingRow label="Notification Duration" description="How long notifications stay visible (ms)">
-              <input
-                type="number"
-                defaultValue={5000}
-                className="px-2 py-1 rounded border text-sm w-24"
-                style={{ backgroundColor: 'var(--bg-surface)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}
-                min={1000}
-                max={30000}
-              />
-            </SettingRow>
-          </SettingsSection>
+          <div className="space-y-6">
+            <SettingsSection title="Notification Settings">
+              <SettingRow label="Enable Notifications" description="Show in-app notifications for operations">
+                <ToggleSwitch
+                  checked={preferences.notifications.enabled}
+                  onChange={(v) => updateNotifications({ enabled: v })}
+                />
+              </SettingRow>
+              <SettingRow label="Sound Effects" description="Play sounds for notifications">
+                <ToggleSwitch
+                  checked={preferences.notifications.sound_enabled}
+                  onChange={(v) => updateNotifications({ sound_enabled: v })}
+                />
+              </SettingRow>
+              <SettingRow label="Duration (seconds)" description="How long notifications stay visible">
+                <input
+                  type="number"
+                  value={preferences.notifications.duration}
+                  onChange={(e) => updateNotifications({ duration: Math.max(1, Math.min(60, Number(e.target.value))) })}
+                  className="px-2 py-1 rounded border text-sm w-24"
+                  style={{ backgroundColor: 'var(--bg-surface)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}
+                  min={1}
+                  max={60}
+                  step={1}
+                />
+              </SettingRow>
+              <SettingRow label="Position" description="Where notifications appear on screen">
+                <select
+                  value={preferences.notifications.position}
+                  onChange={(e) => updateNotifications({ position: e.target.value as any })}
+                  className="px-2 py-1 rounded border text-sm"
+                  style={{ backgroundColor: 'var(--bg-surface)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}
+                >
+                  <option value="top-right">Top Right</option>
+                  <option value="top-left">Top Left</option>
+                  <option value="bottom-right">Bottom Right</option>
+                  <option value="bottom-left">Bottom Left</option>
+                </select>
+              </SettingRow>
+            </SettingsSection>
+
+            {/* Preview section */}
+            <SettingsSection title="Preview">
+              <div className="text-xs mb-3" style={{ color: 'var(--text-subtle)' }}>
+                Click the button below to test notification behavior with current settings.
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={() =>
+                    addNotification({
+                      type: 'success',
+                      title: 'Notification Test',
+                      message: `Duration: ${preferences.notifications.duration}s, Position: ${preferences.notifications.position}`,
+                      duration: preferences.notifications.duration * 1000,
+                    })
+                  }
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-medium transition-colors"
+                  style={{ backgroundColor: 'var(--accent-green)', color: 'var(--bg-base)' }}
+                >
+                  <Bell size={12} />
+                  Test Success
+                </button>
+                <button
+                  onClick={() =>
+                    addNotification({
+                      type: 'error',
+                      title: 'Notification Test',
+                      message: 'This is an error notification preview.',
+                      duration: preferences.notifications.duration * 1000,
+                    })
+                  }
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-medium transition-colors"
+                  style={{ backgroundColor: 'var(--accent-red)', color: 'var(--bg-base)' }}
+                >
+                  <Bell size={12} />
+                  Test Error
+                </button>
+                <button
+                  onClick={() =>
+                    addNotification({
+                      type: 'warning',
+                      title: 'Notification Test',
+                      message: 'This is a warning notification preview.',
+                      duration: preferences.notifications.duration * 1000,
+                    })
+                  }
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-medium transition-colors"
+                  style={{ backgroundColor: 'var(--accent-yellow)', color: 'var(--bg-base)' }}
+                >
+                  <Bell size={12} />
+                  Test Warning
+                </button>
+              </div>
+            </SettingsSection>
+          </div>
         );
 
+      // ============================================================
+      // Security Tab - Full implementation
+      // ============================================================
       case 'security':
         return (
-          <SettingsSection title="Security Settings">
-            <SettingRow label="SSH Key Management" description="Manage SSH keys for Git operations">
-              <button className="px-3 py-1 rounded text-sm" style={{ backgroundColor: 'var(--accent-blue)', color: 'var(--bg-base)' }}>
-                Manage Keys
-              </button>
-            </SettingRow>
-            <SettingRow label="GPG Key Management" description="Manage GPG keys for commit signing">
-              <button className="px-3 py-1 rounded text-sm" style={{ backgroundColor: 'var(--accent-mauve)', color: 'var(--bg-base)' }}>
-                Manage Keys
-              </button>
-            </SettingRow>
-            <SettingRow label="Credential Cache" description="Cache Git credentials">
-              <ToggleSwitch checked={true} onChange={() => {}} />
-            </SettingRow>
-          </SettingsSection>
+          <div className="space-y-6">
+            <SettingsSection title="SSH Key Management">
+              <SettingRow label="Default SSH Key Path" description="Path to the default SSH private key for Git operations">
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    value={preferences.security.ssh_key_path}
+                    onChange={(e) => updateSecurity({ ssh_key_path: e.target.value })}
+                    className="px-2 py-1 rounded border text-sm flex-1"
+                    style={{ backgroundColor: 'var(--bg-surface)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}
+                    placeholder="~/.ssh/id_rsa"
+                  />
+                  <button
+                    onClick={async () => {
+                      try {
+                        const { open } = await import('@tauri-apps/plugin-dialog');
+                        const selected = await open({
+                          multiple: false,
+                          directory: false,
+                          title: 'Select SSH Private Key',
+                        });
+                        if (selected && typeof selected === 'string') {
+                          updateSecurity({ ssh_key_path: selected });
+                        }
+                      } catch {
+                        // Dialog not available in browser preview
+                        addNotification({ type: 'warning', title: 'Dialog unavailable', message: 'File dialog requires Tauri runtime.' });
+                      }
+                    }}
+                    className="flex items-center gap-1 px-2 py-1 rounded text-xs transition-colors"
+                    style={{ backgroundColor: 'var(--bg-overlay)', color: 'var(--text-secondary)', border: '1px solid var(--border-color)' }}
+                    title="Browse for SSH key"
+                  >
+                    <FolderOpen size={12} />
+                    Browse
+                  </button>
+                </div>
+              </SettingRow>
+
+              {/* SSH Key List */}
+              <div className="mt-4">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
+                    Known SSH Keys
+                  </span>
+                  <span className="text-xs" style={{ color: 'var(--text-subtle)' }}>
+                    {preferences.security.ssh_keys.length} key(s)
+                  </span>
+                </div>
+
+                {preferences.security.ssh_keys.length > 0 ? (
+                  <div className="space-y-1.5">
+                    {preferences.security.ssh_keys.map((keyPath) => (
+                      <div
+                        key={keyPath}
+                        className="flex items-center gap-2 px-3 py-2 rounded"
+                        style={{ backgroundColor: 'var(--bg-surface)' }}
+                      >
+                        <Key size={14} style={{ color: 'var(--accent-yellow)' }} />
+                        <span className="text-xs font-mono flex-1 truncate" style={{ color: 'var(--text-primary)' }}>
+                          {keyPath}
+                        </span>
+                        <button
+                          onClick={() => handleRemoveSshKey(keyPath)}
+                          className="p-1 rounded transition-colors"
+                          style={{ color: 'var(--accent-red)' }}
+                          title="Remove key"
+                        >
+                          <X size={12} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-xs py-4 text-center rounded" style={{ color: 'var(--text-subtle)', backgroundColor: 'var(--bg-surface)' }}>
+                    No SSH keys configured. Add one below.
+                  </div>
+                )}
+
+                {/* Add new SSH key */}
+                <div className="flex items-center gap-2 mt-3">
+                  <input
+                    type="text"
+                    value={newSshKeyPath}
+                    onChange={(e) => setNewSshKeyPath(e.target.value)}
+                    className="flex-1 px-2 py-1 rounded border text-xs"
+                    style={{ backgroundColor: 'var(--bg-surface)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}
+                    placeholder="Enter SSH key path (e.g., ~/.ssh/id_ed25519)"
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') handleAddSshKey();
+                    }}
+                  />
+                  <button
+                    onClick={handleAddSshKey}
+                    disabled={!newSshKeyPath.trim()}
+                    className="flex items-center gap-1 px-2 py-1 rounded text-xs font-medium transition-colors disabled:opacity-50"
+                    style={{ backgroundColor: 'var(--accent-blue)', color: 'var(--bg-base)' }}
+                  >
+                    <Plus size={12} />
+                    Add
+                  </button>
+                </div>
+              </div>
+            </SettingsSection>
+
+            <SettingsSection title="GPG & Credentials">
+              <SettingRow label="GPG Key Path" description="Path to GPG key for commit signing">
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    value={preferences.security.gpg_key_path}
+                    onChange={(e) => updateSecurity({ gpg_key_path: e.target.value })}
+                    className="px-2 py-1 rounded border text-sm flex-1"
+                    style={{ backgroundColor: 'var(--bg-surface)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}
+                    placeholder="gpg"
+                  />
+                </div>
+              </SettingRow>
+              <SettingRow label="Credential Cache" description="Cache Git credentials locally">
+                <ToggleSwitch
+                  checked={preferences.security.credential_cache}
+                  onChange={(v) => updateSecurity({ credential_cache: v })}
+                />
+              </SettingRow>
+            </SettingsSection>
+          </div>
         );
 
+      // ============================================================
+      // Storage Tab - Full implementation
+      // ============================================================
       case 'storage':
         return (
-          <SettingsSection title="Storage Management">
-            <SettingRow label="Cache Size" description="Current cache usage">
-              <span className="text-sm" style={{ color: 'var(--text-secondary)' }}>Calculating...</span>
-            </SettingRow>
-            <SettingRow label="Clear Cache" description="Clear all cached data">
-              <button className="px-3 py-1 rounded text-sm" style={{ backgroundColor: 'var(--accent-red)', color: 'var(--bg-base)' }}>
-                Clear Cache
-              </button>
-            </SettingRow>
-            <SettingRow label="Reset All Settings" description="Reset all settings to defaults">
-              <button
-                onClick={resetToDefaults}
-                className="px-3 py-1 rounded text-sm"
-                style={{ backgroundColor: 'var(--accent-red)', color: 'var(--bg-base)' }}
-              >
-                Reset to Defaults
-              </button>
-            </SettingRow>
-          </SettingsSection>
+          <div className="space-y-6">
+            <SettingsSection title="Storage Management">
+              {/* Storage usage info */}
+              <div className="space-y-3">
+                <div
+                  className="flex items-center justify-between px-4 py-3 rounded"
+                  style={{ backgroundColor: 'var(--bg-surface)' }}
+                >
+                  <div>
+                    <div className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
+                      localStorage Usage
+                    </div>
+                    <div className="text-xs mt-0.5" style={{ color: 'var(--text-subtle)' }}>
+                      Browser local storage for preferences and cached data
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-lg font-bold" style={{ color: 'var(--accent-blue)' }}>
+                      {storageSize}
+                    </div>
+                    <div className="text-xs" style={{ color: 'var(--text-subtle)' }}>
+                      {storageKeyCount} key(s)
+                    </div>
+                  </div>
+                </div>
+
+                {/* Storage keys detail */}
+                <div
+                  className="rounded overflow-hidden"
+                  style={{ border: '1px solid var(--border-color)' }}
+                >
+                  <div
+                    className="px-3 py-2 text-xs font-medium"
+                    style={{ backgroundColor: 'var(--bg-overlay)', color: 'var(--text-secondary)' }}
+                  >
+                    Stored Keys
+                  </div>
+                  <div className="max-h-40 overflow-y-auto">
+                    {Array.from({ length: localStorage.length }, (_, i) => localStorage.key(i)).map((key) => {
+                      if (!key) return null;
+                      const value = localStorage.getItem(key);
+                      const size = value ? (key.length + value.length) * 2 : 0;
+                      const sizeStr = size < 1024 ? `${size} B` : `${(size / 1024).toFixed(1)} KB`;
+                      return (
+                        <div
+                          key={key}
+                          className="flex items-center justify-between px-3 py-1.5 text-xs"
+                          style={{ borderBottom: '1px solid var(--border-color)' }}
+                        >
+                          <span className="font-mono" style={{ color: 'var(--text-primary)' }}>
+                            {key}
+                          </span>
+                          <span style={{ color: 'var(--text-subtle)' }}>{sizeStr}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            </SettingsSection>
+
+            <SettingsSection title="Actions">
+              <div className="space-y-3">
+                <SettingRow label="Clear Cache" description="Remove all cached data except preferences">
+                  <button
+                    onClick={handleClearCache}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-medium transition-colors"
+                    style={{ backgroundColor: 'var(--accent-red)', color: 'var(--bg-base)' }}
+                  >
+                    <Trash2 size={12} />
+                    Clear Cache
+                  </button>
+                </SettingRow>
+                <SettingRow label="Reset All Settings" description="Reset all settings to factory defaults">
+                  <button
+                    onClick={() => {
+                      resetToDefaults();
+                      addNotification({ type: 'success', title: 'Settings reset', message: 'All settings have been reset to defaults.' });
+                    }}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-medium transition-colors"
+                    style={{ backgroundColor: 'var(--accent-red)', color: 'var(--bg-base)' }}
+                  >
+                    <RotateCcw size={12} />
+                    Reset to Defaults
+                  </button>
+                </SettingRow>
+              </div>
+            </SettingsSection>
+          </div>
         );
 
+      // ============================================================
+      // Network Tab - Full implementation
+      // ============================================================
       case 'network':
         return (
-          <SettingsSection title="Network Settings">
-            <SettingRow label="Proxy" description="HTTP/HTTPS proxy for Git operations">
-              <input
-                type="text"
-                placeholder="http://proxy:port"
-                className="px-2 py-1 rounded border text-sm flex-1"
-                style={{ backgroundColor: 'var(--bg-surface)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}
-              />
-            </SettingRow>
-            <SettingRow label="SSL Verification" description="Verify SSL certificates">
-              <ToggleSwitch checked={true} onChange={() => {}} />
-            </SettingRow>
-            <SettingRow label="Connection Timeout" description="Network timeout in seconds">
-              <input
-                type="number"
-                defaultValue={30}
-                className="px-2 py-1 rounded border text-sm w-24"
-                style={{ backgroundColor: 'var(--bg-surface)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}
-                min={5}
-                max={300}
-              />
-            </SettingRow>
-          </SettingsSection>
+          <div className="space-y-6">
+            <SettingsSection title="HTTP Proxy">
+              <SettingRow label="Proxy Host" description="HTTP/HTTPS proxy server hostname or IP">
+                <input
+                  type="text"
+                  value={preferences.network.proxy_host}
+                  onChange={(e) => updateNetwork({ proxy_host: e.target.value })}
+                  className="px-2 py-1 rounded border text-sm flex-1"
+                  style={{ backgroundColor: 'var(--bg-surface)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}
+                  placeholder="proxy.example.com"
+                />
+              </SettingRow>
+              <SettingRow label="Proxy Port" description="HTTP/HTTPS proxy server port">
+                <input
+                  type="number"
+                  value={preferences.network.proxy_port || ''}
+                  onChange={(e) => updateNetwork({ proxy_port: Number(e.target.value) })}
+                  className="px-2 py-1 rounded border text-sm w-24"
+                  style={{ backgroundColor: 'var(--bg-surface)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}
+                  placeholder="8080"
+                  min={1}
+                  max={65535}
+                />
+              </SettingRow>
+            </SettingsSection>
+
+            <SettingsSection title="Proxy Authentication">
+              <SettingRow label="Username" description="Username for proxy authentication">
+                <input
+                  type="text"
+                  value={preferences.network.proxy_username}
+                  onChange={(e) => updateNetwork({ proxy_username: e.target.value })}
+                  className="px-2 py-1 rounded border text-sm flex-1"
+                  style={{ backgroundColor: 'var(--bg-surface)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}
+                  placeholder="username"
+                  autoComplete="off"
+                />
+              </SettingRow>
+              <SettingRow label="Password" description="Password for proxy authentication">
+                <input
+                  type="password"
+                  value={preferences.network.proxy_password}
+                  onChange={(e) => updateNetwork({ proxy_password: e.target.value })}
+                  className="px-2 py-1 rounded border text-sm flex-1"
+                  style={{ backgroundColor: 'var(--bg-surface)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}
+                  placeholder="password"
+                  autoComplete="off"
+                />
+              </SettingRow>
+            </SettingsSection>
+
+            <SettingsSection title="Connection">
+              <SettingRow label="SSL Verification" description="Verify SSL certificates for HTTPS connections">
+                <ToggleSwitch
+                  checked={preferences.network.ssl_verify}
+                  onChange={(v) => updateNetwork({ ssl_verify: v })}
+                />
+              </SettingRow>
+              <SettingRow label="Connection Timeout (seconds)" description="Timeout for network operations">
+                <input
+                  type="number"
+                  value={preferences.network.connection_timeout}
+                  onChange={(e) => updateNetwork({ connection_timeout: Math.max(5, Math.min(300, Number(e.target.value))) })}
+                  className="px-2 py-1 rounded border text-sm w-24"
+                  style={{ backgroundColor: 'var(--bg-surface)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}
+                  min={5}
+                  max={300}
+                  step={5}
+                />
+              </SettingRow>
+            </SettingsSection>
+
+            {/* Proxy status indicator */}
+            <SettingsSection title="Status">
+              <div
+                className="flex items-center gap-3 px-4 py-3 rounded"
+                style={{ backgroundColor: 'var(--bg-surface)' }}
+              >
+                <div
+                  className="w-2.5 h-2.5 rounded-full"
+                  style={{
+                    backgroundColor: preferences.network.proxy_host
+                      ? 'var(--accent-green)'
+                      : 'var(--text-subtle)',
+                  }}
+                />
+                <div>
+                  <div className="text-sm" style={{ color: 'var(--text-primary)' }}>
+                    {preferences.network.proxy_host
+                      ? `Proxy configured: ${preferences.network.proxy_host}:${preferences.network.proxy_port || 'default'}`
+                      : 'No proxy configured'}
+                  </div>
+                  <div className="text-xs mt-0.5" style={{ color: 'var(--text-subtle)' }}>
+                    {preferences.network.ssl_verify
+                      ? 'SSL verification enabled'
+                      : 'SSL verification disabled (insecure)'}
+                    {' | '}
+                    Timeout: {preferences.network.connection_timeout}s
+                  </div>
+                </div>
+              </div>
+            </SettingsSection>
+          </div>
+        );
+
+      case 'command_log':
+        return (
+          <div className="space-y-6">
+            <SettingsSection title="Command Log">
+              <div className="flex items-center justify-between mb-3">
+                <span className="text-xs" style={{ color: 'var(--text-subtle)' }}>
+                  {commandLogCount} log entries recorded. Shows recent git commands executed by the application.
+                </span>
+                <button
+                  onClick={handleClearCommandLogs}
+                  className="flex items-center gap-1 px-3 py-1 rounded text-xs font-medium transition-colors"
+                  style={{ backgroundColor: 'var(--accent-red)', color: 'var(--bg-base)' }}
+                >
+                  <Trash2 size={12} />
+                  Clear All
+                </button>
+              </div>
+
+              {commandLogLoading ? (
+                <div className="flex items-center justify-center py-8" style={{ color: 'var(--text-subtle)' }}>
+                  <Loader2 size={16} className="animate-spin mr-2" />
+                  Loading command logs...
+                </div>
+              ) : commandLogs.length === 0 ? (
+                <div className="text-center py-8 text-sm" style={{ color: 'var(--text-subtle)' }}>
+                  No command logs recorded yet. Execute git operations to see logs here.
+                </div>
+              ) : (
+                <div
+                  className="rounded overflow-hidden"
+                  style={{ border: '1px solid var(--border-color)' }}
+                >
+                  {/* Header */}
+                  <div
+                    className="grid grid-cols-12 gap-2 px-3 py-2 text-xs font-medium"
+                    style={{ backgroundColor: 'var(--bg-overlay)', color: 'var(--text-secondary)' }}
+                  >
+                    <div className="col-span-2">Time</div>
+                    <div className="col-span-2">Command</div>
+                    <div className="col-span-4">Arguments</div>
+                    <div className="col-span-1">Status</div>
+                    <div className="col-span-1">Duration</div>
+                    <div className="col-span-2">Exit Code</div>
+                  </div>
+                  {/* Rows */}
+                  <div className="max-h-96 overflow-y-auto">
+                    {commandLogs.map((entry) => (
+                      <div
+                        key={entry.id}
+                        className="grid grid-cols-12 gap-2 px-3 py-2 text-xs transition-colors"
+                        style={{ borderBottom: '1px solid var(--border-color)' }}
+                      >
+                        <div className="col-span-2 font-mono" style={{ color: 'var(--text-subtle)' }}>
+                          {new Date(entry.timestamp * 1000).toLocaleTimeString()}
+                        </div>
+                        <div className="col-span-2 font-mono" style={{ color: 'var(--accent-blue)' }}>
+                          {entry.command}
+                        </div>
+                        <div className="col-span-4 font-mono truncate" style={{ color: 'var(--text-primary)' }} title={entry.args}>
+                          {entry.args}
+                        </div>
+                        <div className="col-span-1">
+                          <span
+                            className="px-1.5 py-0.5 rounded text-xs"
+                            style={{
+                              backgroundColor: entry.success ? 'rgba(166, 227, 161, 0.15)' : 'rgba(243, 139, 168, 0.15)',
+                              color: entry.success ? 'var(--accent-green)' : 'var(--accent-red)',
+                            }}
+                          >
+                            {entry.success ? 'OK' : 'FAIL'}
+                          </span>
+                        </div>
+                        <div className="col-span-1 font-mono" style={{ color: 'var(--text-subtle)' }}>
+                          {entry.duration_ms}ms
+                        </div>
+                        <div className="col-span-2 font-mono" style={{ color: 'var(--text-subtle)' }}>
+                          {entry.exit_code}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </SettingsSection>
+          </div>
+        );
+
+      case 'custom_actions':
+        return (
+          <div className="space-y-6">
+            <SettingsSection title="Custom Actions">
+              <div className="text-xs mb-3" style={{ color: 'var(--text-subtle)' }}>
+                Define custom shell commands that can be run on your repository. Variables like {'{RepoPath}'}, {'{Branch}'}, {'{CommitSHA}'} are auto-replaced.
+              </div>
+
+              <div className="flex items-center justify-between mb-3">
+                <span className="text-xs" style={{ color: 'var(--text-subtle)' }}>
+                  {customActions.length} action(s) configured
+                </span>
+                <button
+                  onClick={handleAddCustomAction}
+                  className="flex items-center gap-1 px-3 py-1 rounded text-xs font-medium transition-colors"
+                  style={{ backgroundColor: 'var(--accent-green)', color: 'var(--bg-base)' }}
+                >
+                  <Plus size={12} />
+                  Add Action
+                </button>
+              </div>
+
+              {customActionsLoading ? (
+                <div className="flex items-center justify-center py-8" style={{ color: 'var(--text-subtle)' }}>
+                  <Loader2 size={16} className="animate-spin mr-2" />
+                  Loading custom actions...
+                </div>
+              ) : customActions.length === 0 ? (
+                <div className="text-center py-8 text-sm rounded" style={{ color: 'var(--text-subtle)', backgroundColor: 'var(--bg-surface)' }}>
+                  No custom actions configured. Click "Add Action" to create one.
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {customActions.map((action) => (
+                    <div
+                      key={action.id}
+                      className="flex items-center gap-3 px-4 py-3 rounded"
+                      style={{ backgroundColor: 'var(--bg-surface)' }}
+                    >
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
+                            {action.name}
+                          </span>
+                          <span
+                            className="text-xs px-1.5 py-0.5 rounded"
+                            style={{ backgroundColor: 'rgba(137, 180, 250, 0.1)', color: 'var(--accent-blue)' }}
+                          >
+                            {action.scope}
+                          </span>
+                        </div>
+                        <div className="text-xs font-mono mt-1 truncate" style={{ color: 'var(--text-subtle)' }}>
+                          {action.command}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-1 shrink-0">
+                        <button
+                          onClick={() => handleTestAction(action)}
+                          className="p-1.5 rounded transition-colors"
+                          style={{ color: 'var(--accent-green)' }}
+                          title="Test run"
+                        >
+                          <Play size={14} />
+                        </button>
+                        <button
+                          onClick={() => handleEditCustomAction(action)}
+                          className="p-1.5 rounded transition-colors"
+                          style={{ color: 'var(--accent-blue)' }}
+                          title="Edit"
+                        >
+                          <Pencil size={14} />
+                        </button>
+                        <button
+                          onClick={() => handleDeleteCustomAction(action.id)}
+                          className="p-1.5 rounded transition-colors"
+                          style={{ color: 'var(--accent-red)' }}
+                          title="Delete"
+                        >
+                          <X size={14} />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Test output */}
+              {actionOutput && (
+                <div
+                  className="rounded overflow-hidden"
+                  style={{ border: '1px solid var(--border-color)' }}
+                >
+                  <div
+                    className="px-3 py-2 text-xs font-medium"
+                    style={{ backgroundColor: 'var(--bg-overlay)', color: 'var(--text-secondary)' }}
+                  >
+                    Test Output
+                  </div>
+                  <pre
+                    className="p-3 text-xs font-mono whitespace-pre-wrap max-h-40 overflow-y-auto"
+                    style={{ color: 'var(--text-primary)', backgroundColor: 'var(--bg-surface)' }}
+                  >
+                    {actionOutput}
+                  </pre>
+                </div>
+              )}
+            </SettingsSection>
+
+            {/* Action Edit Dialog */}
+            {actionDialogOpen && editingAction && (
+              <div
+                className="fixed inset-0 flex items-center justify-center z-50"
+                style={{ backgroundColor: 'rgba(0, 0, 0, 0.5)' }}
+                onClick={() => { setActionDialogOpen(false); setEditingAction(null); }}
+              >
+                <div
+                  className="w-full max-w-lg rounded-lg p-6 space-y-4"
+                  style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border-color)' }}
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
+                      {customActions.find((a) => a.id === editingAction.id) ? 'Edit Custom Action' : 'New Custom Action'}
+                    </h3>
+                    <button
+                      onClick={() => { setActionDialogOpen(false); setEditingAction(null); }}
+                      style={{ color: 'var(--text-subtle)' }}
+                    >
+                      <X size={16} />
+                    </button>
+                  </div>
+
+                  <div className="space-y-3">
+                    <div>
+                      <label className="text-xs font-medium block mb-1" style={{ color: 'var(--text-secondary)' }}>Name</label>
+                      <input
+                        type="text"
+                        value={editingAction.name}
+                        onChange={(e) => setEditingAction({ ...editingAction, name: e.target.value })}
+                        className="w-full px-2 py-1.5 rounded border text-sm"
+                        style={{ backgroundColor: 'var(--bg-overlay)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}
+                        placeholder="e.g., Run Tests"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="text-xs font-medium block mb-1" style={{ color: 'var(--text-secondary)' }}>Command</label>
+                      <input
+                        type="text"
+                        value={editingAction.command}
+                        onChange={(e) => setEditingAction({ ...editingAction, command: e.target.value })}
+                        className="w-full px-2 py-1.5 rounded border text-sm font-mono"
+                        style={{ backgroundColor: 'var(--bg-overlay)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}
+                        placeholder="e.g., npm test"
+                      />
+                      <div className="text-xs mt-1" style={{ color: 'var(--text-subtle)' }}>
+                        Variables: {'{RepoPath}'}, {'{Branch}'}, {'{CommitSHA}'}, {'{FilePath}'}, {'{TagName}'}
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="text-xs font-medium block mb-1" style={{ color: 'var(--text-secondary)' }}>Working Directory</label>
+                        <select
+                          value={editingAction.working_directory}
+                          onChange={(e) => setEditingAction({ ...editingAction, working_directory: e.target.value })}
+                          className="w-full px-2 py-1.5 rounded border text-sm"
+                          style={{ backgroundColor: 'var(--bg-overlay)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}
+                        >
+                          <option value="repo">Repository Root</option>
+                          <option value="home">Home Directory</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="text-xs font-medium block mb-1" style={{ color: 'var(--text-secondary)' }}>Scope</label>
+                        <select
+                          value={editingAction.scope}
+                          onChange={(e) => setEditingAction({ ...editingAction, scope: e.target.value })}
+                          className="w-full px-2 py-1.5 rounded border text-sm"
+                          style={{ backgroundColor: 'var(--bg-overlay)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}
+                        >
+                          <option value="repository">Repository</option>
+                          <option value="commit">Commit</option>
+                          <option value="branch">Branch</option>
+                          <option value="tag">Tag</option>
+                          <option value="remote">Remote</option>
+                          <option value="file">File</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="text-xs font-medium block mb-1" style={{ color: 'var(--text-secondary)' }}>Variables</label>
+                      {editingAction.variables.length === 0 && (
+                        <div className="text-xs py-2" style={{ color: 'var(--text-subtle)' }}>
+                          No variables defined. Add variables for user input prompts.
+                        </div>
+                      )}
+                      {editingAction.variables.map((v, i) => (
+                        <div key={i} className="flex items-center gap-2 mb-2">
+                          <input
+                            type="text"
+                            value={v.name}
+                            onChange={(e) => {
+                              const newVars = [...editingAction.variables];
+                              newVars[i] = { ...newVars[i], name: e.target.value };
+                              setEditingAction({ ...editingAction, variables: newVars });
+                            }}
+                            className="flex-1 px-2 py-1 rounded border text-xs"
+                            style={{ backgroundColor: 'var(--bg-overlay)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}
+                            placeholder="Variable name"
+                          />
+                          <select
+                            value={v.control_type}
+                            onChange={(e) => {
+                              const newVars = [...editingAction.variables];
+                              newVars[i] = { ...newVars[i], control_type: e.target.value as CustomActionVariable['control_type'] };
+                              setEditingAction({ ...editingAction, variables: newVars });
+                            }}
+                            className="px-2 py-1 rounded border text-xs"
+                            style={{ backgroundColor: 'var(--bg-overlay)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}
+                          >
+                            <option value="textbox">Text</option>
+                            <option value="path_selector">Path</option>
+                            <option value="checkbox">Checkbox</option>
+                            <option value="combobox">Combo</option>
+                          </select>
+                          <input
+                            type="text"
+                            value={v.default_value}
+                            onChange={(e) => {
+                              const newVars = [...editingAction.variables];
+                              newVars[i] = { ...newVars[i], default_value: e.target.value };
+                              setEditingAction({ ...editingAction, variables: newVars });
+                            }}
+                            className="w-24 px-2 py-1 rounded border text-xs"
+                            style={{ backgroundColor: 'var(--bg-overlay)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}
+                            placeholder="Default"
+                          />
+                          <button
+                            onClick={() => {
+                              const newVars = editingAction.variables.filter((_, j) => j !== i);
+                              setEditingAction({ ...editingAction, variables: newVars });
+                            }}
+                            style={{ color: 'var(--accent-red)' }}
+                          >
+                            <X size={12} />
+                          </button>
+                        </div>
+                      ))}
+                      <button
+                        onClick={() => {
+                          setEditingAction({
+                            ...editingAction,
+                            variables: [...editingAction.variables, { name: '', control_type: 'textbox', default_value: '', options: [] }],
+                          });
+                        }}
+                        className="flex items-center gap-1 px-2 py-1 rounded text-xs transition-colors"
+                        style={{ color: 'var(--accent-blue)', border: '1px dashed var(--border-color)' }}
+                      >
+                        <Plus size={10} />
+                        Add Variable
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-end gap-2 pt-2">
+                    <button
+                      onClick={() => { setActionDialogOpen(false); setEditingAction(null); }}
+                      className="px-3 py-1.5 rounded text-xs"
+                      style={{ color: 'var(--text-secondary)' }}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={handleSaveActionDialog}
+                      className="flex items-center gap-1 px-3 py-1.5 rounded text-xs font-medium transition-colors"
+                      style={{ backgroundColor: 'var(--accent-green)', color: 'var(--bg-base)' }}
+                    >
+                      <Save size={12} />
+                      Save
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
         );
 
       case 'about':
@@ -469,7 +2134,7 @@ export const Settings: React.FC = () => {
               }}
             >
               {tab.icon}
-              <span className="flex-1 text-left">{tab.label}</span>
+              <span className="flex-1 text-left">{t(tab.labelKey)}</span>
               {activeTab === tab.id && <ChevronRight size={12} />}
             </button>
           ))}

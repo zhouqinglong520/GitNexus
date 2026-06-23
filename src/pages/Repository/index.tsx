@@ -3,10 +3,13 @@ import { useNavigate } from 'react-router-dom';
 import { useRepositoryStore } from '@/stores/repository-store';
 import { useGitStore } from '@/stores/git-store';
 import { useUIStore } from '@/stores/ui-store';
+import { useTranslation } from '@/i18n';
 import { Sidebar } from '@/components/Sidebar';
+import { InProgressBanner } from '@/components/InProgressBanner';
 import { Histories } from '@/pages/Histories';
 import { WorkingCopy } from '@/pages/WorkingCopy';
 import { Stashes } from '@/pages/Stashes';
+import { useGitWatcher } from '@/hooks/useGitWatcher';
 import { X, Loader2 } from 'lucide-react';
 import type { TabType } from '@/types';
 
@@ -18,6 +21,10 @@ export const Repository: React.FC = () => {
   const setActiveTab = useRepositoryStore((s) => s.setActiveTab);
   const operations = useUIStore((s) => s.operations);
   const fetchAll = useGitStore((s) => s.fetchAll);
+  const { t } = useTranslation();
+
+  // Watch for repository changes (auto-refresh status, branches, etc.)
+  useGitWatcher(activeRepo);
 
   const [activeTabType, setActiveTabType] = useState<TabType>('histories');
 
@@ -94,7 +101,7 @@ export const Repository: React.FC = () => {
                   borderBottom: tabType === type ? '2px solid var(--accent-blue)' : '2px solid transparent',
                 }}
               >
-                {type === 'histories' ? 'Histories' : type === 'working-copy' ? 'Working Copy' : 'Stashes'}
+                {type === 'histories' ? t('repository.histories') : type === 'working-copy' ? t('repository.workingCopy') : t('repository.stashes')}
               </button>
             ))}
           </div>
@@ -122,6 +129,9 @@ export const Repository: React.FC = () => {
             ))}
           </div>
         )}
+
+        {/* In-progress git operation banner (merge/rebase/cherry-pick/revert/bisect) */}
+        <InProgressBanner />
 
         {/* Content Area */}
         <div className="flex-1 overflow-hidden">
