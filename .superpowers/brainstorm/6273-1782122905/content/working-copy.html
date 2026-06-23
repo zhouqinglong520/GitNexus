@@ -1,0 +1,234 @@
+<h2>工作区页面 - WorkingCopy</h2>
+<p class="subtitle">提交变更、暂存管理、Diff 查看</p>
+
+<div class="mockup">
+  <div style="display:flex;height:420px;">
+    <!-- 左侧变更区域 -->
+    <div style="width:300px;background:#212130;display:flex;flex-direction:column;font-size:12px;border-right:1px solid #2a2a40;">
+      <!-- 搜索 -->
+      <div style="padding:6px 8px;border-bottom:1px solid #2a2a40;">
+        <div style="background:#2a2a40;border-radius:4px;padding:4px 8px;color:#666;">🔍 过滤文件...</div>
+      </div>
+      
+      <!-- 未暂存区域 -->
+      <div style="flex:1;display:flex;flex-direction:column;overflow:hidden;">
+        <div style="display:flex;align-items:center;padding:6px 10px;background:#2a2a45;border-bottom:1px solid #3a3a5e;">
+          <span style="flex:1;color:#e06c75;font-weight:600;font-size:11px;">未暂存的变更 (5)</span>
+          <span style="color:#888;font-size:10px;cursor:pointer;padding:2px 6px;">暂存全部</span>
+          <span style="color:#888;font-size:10px;cursor:pointer;padding:2px 6px;">丢弃</span>
+        </div>
+        <div style="flex:1;overflow:auto;">
+          <div style="display:flex;align-items:center;padding:4px 10px;border-bottom:1px solid #1f1f30;">
+            <span style="color:#98c379;margin-right:8px;">M</span>
+            <span style="flex:1;color:#ddd;">src/pages/login.tsx</span>
+            <span style="color:#888;font-size:10px;">+12 -3</span>
+          </div>
+          <div style="display:flex;align-items:center;padding:4px 10px;border-bottom:1px solid #1f1f30;background:#1a1a38;">
+            <span style="color:#98c379;margin-right:8px;">M</span>
+            <span style="flex:1;color:#ddd;">src/components/Header.tsx</span>
+            <span style="color:#888;font-size:10px;">+5 -1</span>
+          </div>
+          <div style="display:flex;align-items:center;padding:4px 10px;border-bottom:1px solid #1f1f30;">
+            <span style="color:#e5c07b;margin-right:8px;">A</span>
+            <span style="flex:1;color:#ddd;">src/utils/validate.ts</span>
+            <span style="color:#888;font-size:10px;">+89 -0</span>
+          </div>
+          <div style="display:flex;align-items:center;padding:4px 10px;border-bottom:1px solid #1f1f30;">
+            <span style="color:#e06c75;margin-right:8px;">D</span>
+            <span style="flex:1;color:#ddd;">src/old/legacy.ts</span>
+            <span style="color:#888;font-size:10px;">-23</span>
+          </div>
+          <div style="display:flex;align-items:center;padding:4px 10px;border-bottom:1px solid #1f1f30;">
+            <span style="color:#c678dd;margin-right:8px;">R</span>
+            <span style="flex:1;color:#ddd;">src/utils/helper.ts → .../helper.ts</span>
+            <span style="color:#888;font-size:10px;">+2 -2</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 分隔条 -->
+      <div style="height:3px;background:#3a3a5e;cursor:row-resize;"></div>
+
+      <!-- 已暂存区域 -->
+      <div style="flex:1;display:flex;flex-direction:column;overflow:hidden;">
+        <div style="display:flex;align-items:center;padding:6px 10px;background:#2a2a45;border-bottom:1px solid #3a3a5e;">
+          <span style="flex:1;color:#61afef;font-weight:600;font-size:11px;">已暂存的变更 (2)</span>
+          <span style="color:#888;font-size:10px;cursor:pointer;padding:2px 6px;">取消暂存</span>
+          <span style="color:#888;font-size:10px;cursor:pointer;padding:2px 6px;">丢弃</span>
+        </div>
+        <div style="flex:1;overflow:auto;">
+          <div style="display:flex;align-items:center;padding:4px 10px;border-bottom:1px solid #1f1f30;">
+            <span style="color:#98c379;margin-right:8px;">M</span>
+            <span style="flex:1;color:#ddd;">package.json</span>
+            <span style="color:#888;font-size:10px;">+3 -1</span>
+          </div>
+          <div style="display:flex;align-items:center;padding:4px 10px;border-bottom:1px solid #1f1f30;">
+            <span style="color:#98c379;margin-right:8px;">M</span>
+            <span style="flex:1;color:#ddd;">src/api/user.ts</span>
+            <span style="color:#888;font-size:10px;">+8 -4</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 右侧 Diff + 提交区域 -->
+    <div style="flex:1;background:#1a1a2e;display:flex;flex-direction:column;">
+      <!-- Diff 工具栏 -->
+      <div style="display:flex;align-items:center;padding:4px 12px;border-bottom:1px solid #2a2a40;gap:8px;font-size:11px;">
+        <span style="color:#888;">Diff:</span>
+        <span style="color:#888;cursor:pointer;">⏮</span>
+        <span style="color:#888;cursor:pointer;">⏪</span>
+        <span style="color:#888;cursor:pointer;">⏩</span>
+        <span style="color:#888;cursor:pointer;">⏭</span>
+        <span style="color:#888;margin-left:12px;">+12 -3</span>
+        <div style="flex:1;"></div>
+        <span style="color:#666;cursor:pointer;padding:2px 6px;">并排</span>
+        <span style="color:#666;cursor:pointer;padding:2px 6px;">换行</span>
+        <span style="color:#666;cursor:pointer;padding:2px 6px;">忽略空白</span>
+        <span style="color:#666;cursor:pointer;padding:2px 6px;">外部工具</span>
+      </div>
+
+      <!-- Diff 内容 -->
+      <div style="flex:1;overflow:auto;font-family:monospace;font-size:12px;line-height:1.6;">
+        <div style="display:flex;background:#1a1a30;padding:2px 12px;color:#666;">
+          <span style="width:40px;text-align:right;margin-right:16px;"></span>
+          <span style="flex:1;">--- a/src/pages/login.tsx</span>
+        </div>
+        <div style="display:flex;background:#1a1a30;padding:2px 12px;color:#666;">
+          <span style="width:40px;text-align:right;margin-right:16px;"></span>
+          <span style="flex:1;">+++ b/src/pages/login.tsx</span>
+        </div>
+        <div style="display:flex;background:#1a1a30;padding:2px 12px;color:#888;font-size:10px;">
+          <span style="width:40px;text-align:right;margin-right:16px;">@@</span>
+          <span style="flex:1;">@@ -1,5 +1,14 @@</span>
+        </div>
+        <!-- 未变更行 -->
+        <div style="display:flex;padding:1px 12px;color:#888;">
+          <span style="width:40px;text-align:right;margin-right:16px;color:#555;">1</span>
+          <span style="width:40px;text-align:right;margin-right:16px;color:#555;">1</span>
+          <span style="flex:1;">import React from 'react';</span>
+        </div>
+        <div style="display:flex;padding:1px 12px;color:#888;">
+          <span style="width:40px;text-align:right;margin-right:16px;color:#555;">2</span>
+          <span style="width:40px;text-align:right;margin-right:16px;color:#555;">2</span>
+          <span style="flex:1;">import { useState } from 'react';</span>
+        </div>
+        <!-- 删除行 -->
+        <div style="display:flex;padding:1px 12px;background:#3a1a1a;color:#e06c75;">
+          <span style="width:40px;text-align:right;margin-right:16px;color:#555;">3</span>
+          <span style="width:40px;text-align:right;margin-right:16px;color:#555;"></span>
+          <span style="flex:1;">-import { login } from '../api/oldAuth';</span>
+        </div>
+        <!-- 添加行 -->
+        <div style="display:flex;padding:1px 12px;background:#1a3a1a;color:#98c379;">
+          <span style="width:40px;text-align:right;margin-right:16px;color:#555;"></span>
+          <span style="width:40px;text-align:right;margin-right:16px;color:#555;">3</span>
+          <span style="flex:1;">+import { login } from '../api/auth';</span>
+        </div>
+        <div style="display:flex;padding:1px 12px;background:#1a3a1a;color:#98c379;">
+          <span style="width:40px;text-align:right;margin-right:16px;color:#555;"></span>
+          <span style="width:40px;text-align:right;margin-right:16px;color:#555;">4</span>
+          <span style="flex:1;">+import { validate, LoginForm } from '../utils/validate';</span>
+        </div>
+        <!-- 未变更行 -->
+        <div style="display:flex;padding:1px 12px;color:#888;">
+          <span style="width:40px;text-align:right;margin-right:16px;color:#555;">4</span>
+          <span style="width:40px;text-align:right;margin-right:16px;color:#555;">5</span>
+          <span style="flex:1;">interface Props {</span>
+        </div>
+        <div style="display:flex;padding:1px 12px;color:#888;">
+          <span style="width:40px;text-align:right;margin-right:16px;color:#555;">5</span>
+          <span style="width:40px;text-align:right;margin-right:16px;color:#555;">6</span>
+          <span style="flex:1;">  redirectTo?: string;</span>
+        </div>
+        <div style="display:flex;padding:1px 12px;background:#1a3a1a;color:#98c379;">
+          <span style="width:40px;text-align:right;margin-right:16px;color:#555;"></span>
+          <span style="width:40px;text-align:right;margin-right:16px;color:#555;">7</span>
+          <span style="flex:1;">+  onRemember?: boolean;</span>
+        </div>
+        <div style="display:flex;padding:1px 12px;color:#888;">
+          <span style="width:40px;text-align:right;margin-right:16px;color:#555;">6</span>
+          <span style="width:40px;text-align:right;margin-right:16px;color:#555;">8</span>
+          <span style="flex:1;">}</span>
+        </div>
+        <div style="display:flex;padding:1px 12px;background:#1a3a1a;color:#98c379;border-bottom:1px solid #2a3a2a;">
+          <span style="width:40px;text-align:right;margin-right:16px;color:#555;"></span>
+          <span style="width:40px;text-align:right;margin-right:16px;color:#555;">9</span>
+          <span style="flex:1;">+const LoginPage: React.FC<Props> = ({ redirectTo, onRemember }) => {</span>
+        </div>
+      </div>
+
+      <!-- 提交信息区域 -->
+      <div style="border-top:1px solid #2a2a40;background:#1a1a2e;">
+        <div style="padding:8px 12px;">
+          <div style="display:flex;align-items:center;margin-bottom:8px;gap:8px;">
+            <span style="color:#e5c07b;font-size:10px;">✨</span>
+            <span style="color:#888;font-size:10px;cursor:pointer;">规范提交</span>
+            <span style="color:#888;font-size:10px;cursor:pointer;margin-left:auto;">🤖 AI 生成</span>
+          </div>
+          <input style="width:100%;padding:6px 8px;background:#212130;border:1px solid #3a3a5e;border-radius:4px;color:#ddd;font-size:13px;margin-bottom:6px;box-sizing:border-box;" placeholder="提交标题" value="✨ feat: 重构登录页面，使用新的认证API" />
+          <textarea style="width:100%;padding:6px 8px;background:#212130;border:1px solid #3a3a5e;border-radius:4px;color:#ddd;font-size:12px;height:48px;resize:none;box-sizing:border-box;font-family:monospace;" placeholder="提交详情（可选）">- 替换旧的 oldAuth API 为新的 auth 模块
+- 添加登录表单验证支持
+- 新增"记住我"选项</textarea>
+        </div>
+        <div style="display:flex;align-items:center;padding:6px 12px;border-top:1px solid #2a2a40;gap:12px;">
+          <label style="color:#888;font-size:11px;"><input type="checkbox" /> SignOff</label>
+          <label style="color:#888;font-size:11px;"><input type="checkbox" /> NoVerify</label>
+          <label style="color:#888;font-size:11px;"><input type="checkbox" /> 修正(Amend)</label>
+          <div style="flex:1;"></div>
+          <button style="background:#3a3a5e;border:1px solid #4a4a7e;color:#ccc;padding:4px 16px;border-radius:4px;font-size:12px;">提交</button>
+          <button style="background:#2a5a3a;border:1px solid #3a7a5a;color:#98c379;padding:4px 16px;border-radius:4px;font-size:12px;">提交并推送</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>设计要点</h3>
+  <div class="pros-cons">
+    <div class="pros">
+      <h4>变更管理</h4>
+      <ul>
+        <li>双区域设计：未暂存 / 已暂存，拖拽分隔条可调大小</li>
+        <li>状态图标：M(修改) A(新增) D(删除) R(重命名) C(复制) U(未跟踪) !(冲突)</li>
+        <li>每行显示 +/- 行数统计</li>
+        <li>选中行高亮，自动在右侧显示 Diff</li>
+      </ul>
+    </div>
+    <div class="cons">
+      <h4>提交体验</h4>
+      <ul>
+        <li>规范提交辅助面板（输入框上方）</li>
+        <li>AI 生成提交消息按钮</li>
+        <li>提交选项：SignOff/NoVerify/Amend/ResetAuthor</li>
+        <li>提交 + 提交并推送 双按钮</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<div class="section" style="background:#1e1e30;border-radius:8px;padding:16px;">
+  <h3>Diff 工具栏详解</h3>
+  <div style="display:flex;gap:16px;margin-top:8px;">
+    <div style="flex:1;">
+      <h4>导航操作</h4>
+      <ul>
+        <li>⏮ 首个变更块</li>
+        <li>⏪ 上一个变更块 (Ctrl+Alt+Up)</li>
+        <li>⏩ 下一个变更块 (Ctrl+Alt+Down)</li>
+        <li>⏭ 最后一个变更块</li>
+      </ul>
+    </div>
+    <div style="flex:1;">
+      <h4>显示模式</h4>
+      <ul>
+        <li>并排 Diff (SideBySide)</li>
+        <li>自动换行 (WordWrap)</li>
+        <li>忽略空白变更</li>
+        <li>打开外部合并工具</li>
+        <li>语法高亮开关</li>
+      </ul>
+    </div>
+  </div>
+</div>

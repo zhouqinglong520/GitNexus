@@ -1,0 +1,173 @@
+use std::process::Stdio;
+use tokio::io::{AsyncBufReadExt, BufReader};
+use tokio::process::Command;
+
+/// Error type for all git operations.
+#[derive(Debug, thiserror::Error)]
+pub enum GitError {
+    #[error("Git process error: {0}")]
+    ProcessError(String),
+
+    #[error("Git command error: {0}")]
+    CommandError(String),
+
+    #[error("Git parse error: {0}")]
+    ParseError(String),
+
+    #[error("Git operation timed out")]
+    Timeout,
+
+    #[error("Git operation cancelled")]
+    Cancelled,
+}
+
+impl From<std::io::Error> for GitError {
+    fn from(err: std::io::Error) -> Self {
+        GitError::ProcessError(err.to_string())
+    }
+}
+
+/// A bridge to the git CLI. All git sub-commands go through this struct.
+#[derive(Debug, Clone)]
+pub struct GitCommand {
+    pub repo_path: String,
+}
+
+impl GitCommand {
+    pub fn new(repo_path: impl Into<String>) -> Self {
+        Self {
+            repo_path: repo_path.into(),
+        }
+    }
+
+    /// Build a base `Command` with global flags: --no-pager -c core.quotepath=off
+    fn base_cmd(&self) -> Command {
+        let mut cmd = Command::new("git");
+        cmd.arg("--no-pager")
+            .arg("-c")
+            .arg("core.quotepath=off")
+            .current_dir(&self.repo_path)
+            .env("GIT_TERMINAL_PROMPT", "0");
+        cmd
+    }
+
+    // ------------------------------------------------------------------
+    // Execution modes
+    // ------------------------------------------------------------------
+
+    /// Execute a git command asynchronously, streaming stdout/stderr via callbacks.
+    /// Returns the exit code on success.
+    pub async fn exec_async<F, E>(
+        &self,
+        args: &[&str],
+        on_stdout: F,
+        on_stderr: E,
+    ) -> Result<(), GitError>
+    where
+        F: Fn(String),
+        E: Fn(String),
+    {
+        let mut cmd = self.base_cmd();
+        cmd.args(args);
+
+        cmd.stdout(Stdio::piped()).stderr(Stdio::piped());
+
+        let mut child = cmd.spawn().map_err(|e| GitError::ProcessError(e.to_string()))?;
+
+        let stdout = child
+            .stdout
+            .take()
+            .ok_or_else(|| GitError::ProcessError("Failed to capture stdout".into()))?;
+        let stderr = child
+            .stderr
+            .take()
+            .ok_or_else(|| GitError::ProcessError("Failed to capture stderr".into()))?;
+
+        let mut stdout_reader = BufReader::new(stdout).lines();
+        let mut stderr_reader = BufReader::new(stderr).lines();
+
+        let mut stdout_done = false;
+        let mut stderr_done = false;
+
+        loop {
+            tokio::select! {
+                line = stdout_reader.next_line(), if !stdout_done => {
+                    match line {
+                        Ok(Some(line)) => on_stdout(line),
+                        Ok(None) => { stdout_done = true; }
+                        Err(e) => return Err(GitError::ProcessError(e.to_string())),
+                    }
+                }
+                line = stderr_reader.next_line(), if !stderr_done => {
+                    match line {
+                        Ok(Some(line)) => on_stderr(line),
+                        Ok(None) => { stderr_done = true; }
+                        Err(e) => return Err(GitError::ProcessError(e.to_string())),
+                    }
+                }
+                _ = tokio::task::yield_now(), if stdout_done && stderr_done => {
+                    // Both streams finished; just wait for the process to exit.
+                    let status = child.wait().await
+                        .map_err(|e| GitError::ProcessError(e.to_string()))?;
+                    if status.success() {
+                        return Ok(());
+                    } else {
+                        return Err(GitError::CommandError(format!(
+                            "git {} exited with code {}",
+                            args.join(" "),
+                            status.code().unwrap_or(-1)
+                        )));
+                    }
+                }
+            }
+        }
+    }
+
+    /// Execute a git command synchronously (blocking), read all stdout to end.
+    pub fn read_to_end(&self, args: &[&str]) -> Result<String, GitError> {
+        use std::process::Command as StdCommand;
+
+        let mut cmd = StdCommand::new("git");
+        cmd.arg("--no-pager")
+            .arg("-c")
+            .arg("core.quotepath=off")
+            .args(args)
+            .current_dir(&self.repo_path)
+            .env("GIT_TERMINAL_PROMPT", "0")
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped());
+
+        let output = cmd
+            .output()
+            .map_err(|e| GitError::ProcessError(e.to_string()))?;
+
+        if output.status.success() {
+            Ok(String::from_utf8_lossy(&output.stdout).to_string())
+        } else {
+            Err(GitError::CommandError(
+                String::from_utf8_lossy(&output.stderr).to_string(),
+            ))
+        }
+    }
+
+    /// Execute a git command asynchronously, read all stdout to end.
+    pub async fn read_to_end_async(&self, args: &[&str]) -> Result<String, GitError> {
+        let mut cmd = self.base_cmd();
+        cmd.args(args)
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped());
+
+        let output = cmd
+            .output()
+            .await
+            .map_err(|e| GitError::ProcessError(e.to_string()))?;
+
+        if output.status.success() {
+            Ok(String::from_utf8_lossy(&output.stdout).to_string())
+        } else {
+            Err(GitError::CommandError(
+                String::from_utf8_lossy(&output.stderr).to_string(),
+            ))
+        }
+    }
+}

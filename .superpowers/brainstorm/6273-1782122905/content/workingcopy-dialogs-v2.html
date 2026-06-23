@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #0d1117; color: #c9d1d9; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans SC', sans-serif; font-size: 13px; padding: 20px; }
+  h2 { color: #f0f6fc; font-size: 18px; margin-bottom: 4px; }
+  .subtitle { color: #8b949e; font-size: 13px; margin-bottom: 16px; }
+  .section { margin-bottom: 20px; }
+  .mockup { border: 1px solid #30363d; border-radius: 10px; overflow: hidden; }
+  .mockup-header { background: #161b22; padding: 10px 16px; font-size: 12px; color: #8b949e; border-bottom: 1px solid #21262d; font-weight: 600; letter-spacing: 0.5px; }
+  .note { background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 14px 16px; margin-top: 12px; }
+  .note h4 { color: #58a6ff; font-size: 13px; margin-bottom: 6px; }
+  .note p, .note li { color: #8b949e; font-size: 12px; line-height: 1.7; }
+  .note ul { padding-left: 16px; }
+  .btn { padding: 5px 14px; border-radius: 6px; font-size: 12px; cursor: pointer; border: 1px solid; display: inline-flex; align-items: center; gap: 5px; }
+  .btn-primary { background: #1f6feb; border-color: #388bfd; color: #fff; }
+  .btn-secondary { background: #21262d; border-color: #30363d; color: #c9d1d9; }
+  .btn-success { background: #12261e; border-color: #238636; color: #3fb950; }
+  .btn-danger { background: #3d1214; border-color: #6e2c2c; color: #f85149; }
+  .btn-ghost { background: transparent; border-color: transparent; color: #8b949e; }
+  .btn-ghost:hover { background: #161b22; color: #c9d1d9; }
+  .input { background: #0d1117; border: 1px solid #30363d; border-radius: 6px; padding: 6px 10px; color: #c9d1d9; font-size: 12px; width: 100%; }
+  .input:focus { border-color: #58a6ff; outline: none; box-shadow: 0 0 0 3px rgba(88,166,255,0.15); }
+  select { background: #0d1117; border: 1px solid #30363d; border-radius: 6px; padding: 6px 10px; color: #c9d1d9; font-size: 12px; }
+  .badge { display: inline-flex; align-items: center; padding: 1px 7px; border-radius: 10px; font-size: 10px; font-weight: 600; }
+</style>
+</head>
+<body>
+
+<h2>工作区 + 对话框 — UI 优化</h2>
+<p class="subtitle">按钮系统 / 输入框焦点 / 对话框圆角阴影 / 文件状态图标</p>
+
+<div class="grid2" style="grid-template-columns:1fr 1fr;">
+  <!-- 工作区页面 -->
+  <div class="section">
+    <div class="mockup">
+      <div class="mockup-header">工作区页面</div>
+      <div style="display:flex;height:380px;">
+        <!-- 左侧文件列表 -->
+        <div style="width:280px;background:#0d1117;border-right:1px solid #21262d;display:flex;flex-direction:column;">
+          <!-- 搜索 -->
+          <div style="padding:8px;">
+            <div style="position:relative;">
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="#484f58" stroke-width="1.5" style="position:absolute;left:8px;top:50%;transform:translateY(-50%);"><circle cx="7" cy="7" r="5"/><line x1="11" y1="11" x2="14" y2="14"/></svg>
+              <input class="input" style="padding-left:28px;" placeholder="过滤文件..." value="">
+            </div>
+          </div>
+          <!-- 未暂存 -->
+          <div style="padding:4px 10px 2px;display:flex;align-items:center;justify-content:space-between;">
+            <span style="color:#f47067;font-size:11px;font-weight:600;">未暂存</span>
+            <span class="badge" style="background:#3d1214;color:#f85149;">5</span>
+          </div>
+          <div style="flex:1;overflow:auto;padding:0 6px;">
+            <div style="display:flex;align-items:center;padding:5px 8px;border-radius:4px;font-size:12px;gap:8px;">
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="#3fb950" stroke-width="1.5"><path d="M2 8h12"/><path d="M5 5l-3 3 3 3"/></svg>
+              <span style="flex:1;color:#c9d1d9;">src/pages/login.tsx</span>
+              <span style="color:#3fb950;font-size:10px;font-family:monospace;">+12</span>
+              <span style="color:#f47067;font-size:10px;font-family:monospace;">-3</span>
+            </div>
+            <div style="display:flex;align-items:center;padding:5px 8px;border-radius:4px;background:#0d1926;font-size:12px;gap:8px;">
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="#3fb950" stroke-width="1.5"><path d="M2 8h12"/><path d="M5 5l-3 3 3 3"/></svg>
+              <span style="flex:1;color:#f0f6fc;">src/components/Header.tsx</span>
+              <span style="color:#3fb950;font-size:10px;font-family:monospace;">+5</span>
+              <span style="color:#f47067;font-size:10px;font-family:monospace;">-1</span>
+            </div>
+            <div style="display:flex;align-items:center;padding:5px 8px;border-radius:4px;font-size:12px;gap:8px;">
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="#3fb950" stroke-width="1.5"><path d="M8 2v12M4 8h8"/></svg>
+              <span style="flex:1;color:#c9d1d9;">src/utils/validate.ts</span>
+              <span style="color:#3fb950;font-size:10px;font-family:monospace;">+89</span>
+            </div>
+            <div style="display:flex;align-items:center;padding:5px 8px;border-radius:4px;font-size:12px;gap:8px;">
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="#f47067" stroke-width="1.5"><path d="M2 8h12"/><path d="M5 5l-3 3 3 3"/></svg>
+              <span style="flex:1;color:#c9d1d9;text-decoration:line-through;color:#484f58;">src/old/legacy.ts</span>
+              <span style="color:#f47067;font-size:10px;font-family:monospace;">-23</span>
+            </div>
+            <div style="display:flex;align-items:center;padding:5px 8px;border-radius:4px;font-size:12px;gap:8px;">
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="#d29922" stroke-width="1.5"><path d="M2 4h12M2 12h12"/><path d="M4 4v8M12 4v8"/></svg>
+              <span style="flex:1;color:#c9d1d9;">src/utils/helper.ts</span>
+              <span style="color:#3fb950;font-size:10px;font-family:monospace;">+2</span>
+              <span style="color:#f47067;font-size:10px;font-family:monospace;">-2</span>
+            </div>
+          </div>
+          <!-- 分隔 -->
+          <div style="height:1px;background:#21262d;margin:0 10px;"></div>
+          <!-- 已暂存 -->
+          <div style="padding:4px 10px 2px;display:flex;align-items:center;justify-content:space-between;">
+            <span style="color:#58a6ff;font-size:11px;font-weight:600;">已暂存</span>
+            <span class="badge" style="background:#0d419d;color:#58a6ff;">2</span>
+          </div>
+          <div style="overflow:auto;padding:0 6px 6px;">
+            <div style="display:flex;align-items:center;padding:5px 8px;border-radius:4px;font-size:12px;gap:8px;">
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="#3fb950" stroke-width="1.5"><path d="M2 8h12"/><path d="M5 5l-3 3 3 3"/></svg>
+              <span style="flex:1;color:#c9d1d9;">package.json</span>
+              <span style="color:#3fb950;font-size:10px;font-family:monospace;">+3</span>
+              <span style="color:#f47067;font-size:10px;font-family:monospace;">-1</span>
+            </div>
+            <div style="display:flex;align-items:center;padding:5px 8px;border-radius:4px;font-size:12px;gap:8px;">
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="#3fb950" stroke-width="1.5"><path d="M2 8h12"/><path d="M5 5l-3 3 3 3"/></svg>
+              <span style="flex:1;color:#c9d1d9;">src/api/user.ts</span>
+              <span style="color:#3fb950;font-size:10px;font-family:monospace;">+8</span>
+              <span style="color:#f47067;font-size:10px;font-family:monospace;">-4</span>
+            </div>
+          </div>
+        </div>
+        <!-- 右侧 Diff + 提交 -->
+        <div style="flex:1;background:#010409;display:flex;flex-direction:column;">
+          <!-- Diff 工具栏 -->
+          <div style="display:flex;align-items:center;padding:6px 12px;gap:6px;border-bottom:1px solid #21262d;font-size:11px;">
+            <button class="btn btn-ghost" style="padding:2px 6px;font-size:14px;">⏮</button>
+            <button class="btn btn-ghost" style="padding:2px 6px;font-size:14px;">⏪</button>
+            <button class="btn btn-ghost" style="padding:2px 6px;font-size:14px;">⏩</button>
+            <button class="btn btn-ghost" style="padding:2px 6px;font-size:14px;">⏭</button>
+            <span style="color:#3fb950;font-family:monospace;">+12</span>
+            <span style="color:#f47067;font-family:monospace;">-3</span>
+            <div style="flex:1;"></div>
+            <button class="btn btn-ghost" style="padding:2px 8px;">并排</button>
+            <button class="btn btn-ghost" style="padding:2px 8px;">换行</button>
+            <button class="btn btn-ghost" style="padding:2px 8px;">语法</button>
+            <button class="btn btn-ghost" style="padding:2px 8px;">外部</button>
+          </div>
+          <!-- Diff 内容 -->
+          <div style="flex:1;overflow:auto;font-family:'SF Mono',Consolas,monospace;font-size:12px;line-height:1.7;">
+            <div style="display:flex;padding:1px 12px;color:#484f58;"><span style="width:36px;text-align:right;margin-right:12px;"></span><span>--- a/src/pages/login.tsx</span></div>
+            <div style="display:flex;padding:1px 12px;color:#484f58;"><span style="width:36px;text-align:right;margin-right:12px;"></span><span>+++ b/src/pages/login.tsx</span></div>
+            <div style="display:flex;padding:1px 12px;color:#484f58;font-size:10px;"><span style="width:36px;text-align:right;margin-right:12px;">@@</span><span>@@ -1,5 +1,14 @@</span></div>
+            <div style="display:flex;padding:1px 12px;color:#484f58;"><span style="width:36px;text-align:right;margin-right:12px;color:#30363d;">1</span><span style="width:36px;text-align:right;margin-right:12px;color:#30363d;">1</span><span>import React from 'react';</span></div>
+            <div style="display:flex;padding:1px 12px;background:#1a0d0d;"><span style="width:36px;text-align:right;margin-right:12px;color:#30363d;">3</span><span style="width:36px;text-align:right;margin-right:12px;"></span><span style="color:#f47067;">-import { login } from '../api/oldAuth';</span></div>
+            <div style="display:flex;padding:1px 12px;background:#0d1a0d;"><span style="width:36px;text-align:right;margin-right:12px;"></span><span style="width:36px;text-align:right;margin-right:12px;color:#30363d;">3</span><span style="color:#3fb950;">+import { login } from '../api/auth';</span></div>
+            <div style="display:flex;padding:1px 12px;background:#0d1a0d;"><span style="width:36px;text-align:right;margin-right:12px;"></span><span style="width:36px;text-align:right;margin-right:12px;color:#30363d;">4</span><span style="color:#3fb950;">+import { validate } from '../utils/validate';</span></div>
+            <div style="display:flex;padding:1px 12px;color:#484f58;"><span style="width:36px;text-align:right;margin-right:12px;color:#30363d;">4</span><span style="width:36px;text-align:right;margin-right:12px;color:#30363d;">5</span><span>interface Props {</span></div>
+          </div>
+          <!-- 提交区域 -->
+          <div style="border-top:1px solid #21262d;padding:8px 12px;">
+            <!-- 辅助按钮 -->
+            <div style="display:flex;gap:6px;margin-bottom:6px;">
+              <button class="btn btn-secondary" style="padding:2px 8px;font-size:11px;">
+                <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="#d29922" stroke-width="1.5"><path d="M2 2l4 12 2-5 5-2z"/></svg>
+                规范提交
+              </button>
+              <button class="btn btn-secondary" style="padding:2px 8px;font-size:11px;">
+                <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="#bc8cff" stroke-width="1.5"><circle cx="8" cy="8" r="6"/><path d="M8 4v4l3 2"/></svg>
+                AI 生成
+              </button>
+            </div>
+            <input class="input" style="margin-bottom:6px;font-size:13px;" value="feat: 重构登录页面，使用新的认证API">
+            <textarea class="input" style="height:40px;resize:none;font-family:monospace;font-size:11px;" placeholder="提交详情（可选）"></textarea>
+            <!-- 提交操作栏 -->
+            <div style="display:flex;align-items:center;padding-top:8px;gap:8px;">
+              <label style="color:#8b949e;font-size:11px;display:flex;align-items:center;gap:3px;">
+                <input type="checkbox" style="accent-color:#58a6ff;"> SignOff
+              </label>
+              <label style="color:#8b949e;font-size:11px;display:flex;align-items:center;gap:3px;">
+                <input type="checkbox" style="accent-color:#58a6ff;"> NoVerify
+              </label>
+              <label style="color:#8b949e;font-size:11px;display:flex;align-items:center;gap:3px;">
+                <input type="checkbox" style="accent-color:#58a6ff;"> Amend
+              </label>
+              <div style="flex:1;"></div>
+              <button class="btn btn-secondary">提交</button>
+              <button class="btn btn-success">
+                <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 8h8M4 8l3-3M4 8l3 3"/></svg>
+                提交并推送
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 对话框示例 -->
+  <div class="section">
+    <div class="mockup">
+      <div class="mockup-header">对话框样式</div>
+      <div style="padding:20px;display:flex;flex-direction:column;gap:16px;">
+        <!-- 合并对话框 -->
+        <div style="background:#161b22;border:1px solid #30363d;border-radius:10px;padding:20px;box-shadow:0 8px 24px rgba(0,0,0,0.4);max-width:400px;">
+          <h3 style="color:#f0f6fc;font-size:15px;margin-bottom:4px;">合并分支</h3>
+          <p style="color:#8b949e;font-size:12px;margin-bottom:16px;">将 feature/login 合并到当前分支 main</p>
+          
+          <div style="margin-bottom:12px;">
+            <label style="color:#8b949e;font-size:12px;display:block;margin-bottom:4px;">合并模式</label>
+            <select class="input" style="width:100%;">
+              <option>创建合并提交 (--no-ff)</option>
+              <option>仅快进 (--ff-only)</option>
+              <option>快进优先 (--ff)</option>
+              <option>压缩合并 (--squash)</option>
+            </select>
+          </div>
+          
+          <div style="margin-bottom:16px;">
+            <label style="color:#8b949e;font-size:12px;display:block;margin-bottom:4px;">自定义提交消息（可选）</label>
+            <input class="input" placeholder="留空使用默认消息">
+          </div>
+
+          <div style="display:flex;gap:8px;justify-content:flex-end;">
+            <button class="btn btn-secondary">取消</button>
+            <button class="btn btn-primary">
+              <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 4h8M4 8h8M4 12h5"/></svg>
+              合并
+            </button>
+          </div>
+        </div>
+
+        <!-- 确认对话框 -->
+        <div style="background:#161b22;border:1px solid #30363d;border-radius:10px;padding:20px;box-shadow:0 8px 24px rgba(0,0,0,0.4);max-width:400px;">
+          <div style="display:flex;align-items:flex-start;gap:12px;">
+            <div style="width:32px;height:32px;border-radius:50%;background:#3d1214;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#f85149" stroke-width="1.5"><path d="M8 1v6M8 11v1"/><circle cx="8" cy="8" r="6"/></svg>
+            </div>
+            <div>
+              <h3 style="color:#f0f6fc;font-size:15px;margin-bottom:4px;">确认强制推送</h3>
+              <p style="color:#8b949e;font-size:12px;line-height:1.5;">此操作将覆盖远程仓库的历史记录，且无法撤销。确定要继续吗？</p>
+            </div>
+          </div>
+          <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px;">
+            <button class="btn btn-secondary">取消</button>
+            <button class="btn btn-danger">
+              <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 4l8 8M12 4l-8 8"/></svg>
+              强制推送
+            </button>
+          </div>
+        </div>
+
+        <!-- 通知 Toast -->
+        <div style="background:#161b22;border:1px solid #30363d;border-radius:8px;padding:10px 14px;box-shadow:0 4px 12px rgba(0,0,0,0.3);max-width:360px;display:flex;align-items:center;gap:10px;">
+          <div style="width:24px;height:24px;border-radius:50%;background:#12261e;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="#3fb950" stroke-width="2"><polyline points="3 8 7 12 13 4"/></svg>
+          </div>
+          <div>
+            <div style="color:#f0f6fc;font-size:12px;font-weight:500;">推送成功</div>
+            <div style="color:#8b949e;font-size:11px;">3 个提交已推送到 origin/main</div>
+          </div>
+          <div style="margin-left:auto;cursor:pointer;color:#484f58;font-size:14px;">×</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="note">
+  <h4>工作区 + 对话框优化要点</h4>
+  <ul>
+    <li><strong>文件状态 SVG 图标</strong> — Modified(绿色箭头) / Added(绿色加号) / Deleted(红色箭头+删除线) / Renamed(黄色双向箭头)，替代纯文字 M/A/D/R</li>
+    <li><strong>增删统计彩色分离</strong> — +N 绿色 / -N 红色，等宽字体右对齐</li>
+    <li><strong>分组计数徽标</strong> — "未暂存" 红色圆角 / "已暂存" 蓝色圆角</li>
+    <li><strong>输入框焦点样式</strong> — 蓝色边框 + 外发光（box-shadow: 0 0 0 3px rgba(88,166,255,0.15)）</li>
+    <li><strong>按钮系统</strong> — 4 种变体: Primary(蓝) / Secondary(灰) / Success(绿) / Danger(红)，统一 6px 圆角</li>
+    <li><strong>对话框</strong> — 10px 圆角 + 深色阴影 + 图标标题，危险操作带红色警告图标</li>
+    <li><strong>通知 Toast</strong> — 圆形图标 + 标题 + 描述 + 关闭按钮，支持成功/错误/警告/信息 4 种类型</li>
+    <li><strong>Checkbox 主题色</strong> — accent-color: #58a6ff，与整体蓝色系一致</li>
+    <li><strong>Diff 背景色</strong> — 新增行 #0d1a0d 深绿底 + 绿字，删除行 #1a0d0d 深红底 + 红字</li>
+  </ul>
+</div>
+
+</body>
+</html>

@@ -1,0 +1,178 @@
+<h2>欢迎页面 + 国内特色功能设置</h2>
+<p class="subtitle">启动器首页与面向国内用户的特色配置</p>
+
+<div class="split">
+  <!-- 左侧：欢迎页面 -->
+  <div class="mockup">
+    <div class="mockup-header">欢迎页面</div>
+    <div style="padding:20px;background:#1a1a2e;min-height:300px;">
+      <h3 style="color:#ddd;margin:0 0 4px 0;">GitUI</h3>
+      <p style="color:#888;font-size:12px;margin:0 0 20px 0;">面向国内用户的 Git 桌面工具</p>
+      
+      <div style="display:flex;gap:12px;margin-bottom:24px;">
+        <div style="background:#2a2a45;border:1px solid #3a3a5e;border-radius:8px;padding:16px 24px;text-align:center;flex:1;cursor:pointer;">
+          <div style="font-size:24px;margin-bottom:4px;">📂</div>
+          <div style="color:#ddd;font-size:13px;font-weight:500;">打开仓库</div>
+          <div style="color:#888;font-size:11px;">浏览本地仓库</div>
+        </div>
+        <div style="background:#2a2a45;border:1px solid #3a3a5e;border-radius:8px;padding:16px 24px;text-align:center;flex:1;cursor:pointer;">
+          <div style="font-size:24px;margin-bottom:4px;">📥</div>
+          <div style="color:#ddd;font-size:13px;font-weight:500;">克隆仓库</div>
+          <div style="color:#888;font-size:11px;">从远程克隆</div>
+        </div>
+        <div style="background:#2a2a45;border:1px solid #3a3a5e;border-radius:8px;padding:16px 24px;text-align:center;flex:1;cursor:pointer;">
+          <div style="font-size:24px;margin-bottom:4px;">✨</div>
+          <div style="color:#ddd;font-size:13px;font-weight:500;">初始化</div>
+          <div style="color:#888;font-size:11px;">创建新仓库</div>
+        </div>
+      </div>
+
+      <h4 style="color:#888;font-size:11px;margin:0 0 8px 0;">最近打开的仓库</h4>
+      <div style="background:#212130;border-radius:6px;">
+        <div style="display:flex;align-items:center;padding:8px 12px;border-bottom:1px solid #2a2a40;cursor:pointer;">
+          <span style="color:#98c379;margin-right:10px;">🌿</span>
+          <span style="flex:1;color:#ddd;font-size:13px;">~/projects/my-app</span>
+          <span style="color:#888;font-size:11px;">main</span>
+        </div>
+        <div style="display:flex;align-items:center;padding:8px 12px;border-bottom:1px solid #2a2a40;cursor:pointer;">
+          <span style="color:#98c379;margin-right:10px;">🌿</span>
+          <span style="flex:1;color:#ddd;font-size:13px;">~/work/backend-api</span>
+          <span style="color:#888;font-size:11px;">develop</span>
+        </div>
+        <div style="display:flex;align-items:center;padding:8px 12px;cursor:pointer;">
+          <span style="color:#98c379;margin-right:10px;">🌿</span>
+          <span style="flex:1;color:#ddd;font-size:13px;">~/oss/git-ui</span>
+          <span style="color:#888;font-size:11px;">feature/ui</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 右侧：国内特色设置 -->
+  <div class="mockup">
+    <div class="mockup-header">国内特色设置</div>
+    <div style="padding:16px;background:#1a1a2e;min-height:300px;font-size:13px;">
+      <!-- Gitee 集成 -->
+      <div style="margin-bottom:16px;">
+        <div style="display:flex;align-items:center;margin-bottom:8px;">
+          <span style="font-size:18px;margin-right:8px;">🟢</span>
+          <span style="color:#ddd;font-weight:600;">Gitee 集成</span>
+        </div>
+        <div style="background:#212130;border-radius:6px;padding:10px;">
+          <div style="display:flex;align-items:center;margin-bottom:8px;">
+            <span style="color:#888;width:80px;">Token:</span>
+            <input style="flex:1;background:#2a2a40;border:1px solid #3a3a5e;border-radius:4px;padding:4px 8px;color:#ddd;font-size:12px;" value="●●●●●●●●●●●●" />
+            <button style="background:#3a5a3a;border:1px solid #4a7a4a;color:#98c379;padding:3px 12px;border-radius:4px;font-size:11px;margin-left:6px;">授权</button>
+          </div>
+          <div style="display:flex;gap:16px;">
+            <label style="color:#888;font-size:11px;"><input type="checkbox" checked /> 一键创建 PR 到 Gitee</label>
+            <label style="color:#888;font-size:11px;"><input type="checkbox" checked /> Issue 链接识别</label>
+          </div>
+          <div style="margin-top:8px;padding-top:8px;border-top:1px solid #2a2a40;color:#888;font-size:11px;">
+            已集成平台: Gitee ✓ &nbsp;&nbsp; Coding ✓ &nbsp;&nbsp; 腾讯工蜂 ✓ &nbsp;&nbsp; 华为CodeHub ✓
+          </div>
+        </div>
+      </div>
+
+      <!-- AI 服务 -->
+      <div style="margin-bottom:16px;">
+        <div style="display:flex;align-items:center;margin-bottom:8px;">
+          <span style="font-size:18px;margin-right:8px;">🤖</span>
+          <span style="color:#ddd;font-weight:600;">AI 服务</span>
+        </div>
+        <div style="background:#212130;border-radius:6px;padding:10px;">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+            <span style="color:#888;">服务商:</span>
+            <select style="background:#2a2a40;border:1px solid #3a3a5e;border-radius:4px;padding:4px 8px;color:#ddd;font-size:12px;">
+              <option>DeepSeek</option>
+              <option>通义千问</option>
+              <option>文心一言</option>
+              <option>OpenAI (境外)</option>
+              <option>自定义 (兼容 OpenAI 协议)</option>
+            </select>
+            <span style="color:#888;">模型:</span>
+            <select style="background:#2a2a40;border:1px solid #3a3a5e;border-radius:4px;padding:4px 8px;color:#ddd;font-size:12px;">
+              <option>deepseek-chat</option>
+            </select>
+          </div>
+          <div style="display:flex;align-items:center;">
+            <span style="color:#888;width:80px;">API Key:</span>
+            <input style="flex:1;background:#2a2a40;border:1px solid #3a3a5e;border-radius:4px;padding:4px 8px;color:#ddd;font-size:12px;" value="sk-●●●●●●●●" />
+            <button style="background:#2a2a40;border:1px solid #3a3a5e;color:#888;padding:3px 12px;border-radius:4px;font-size:11px;margin-left:6px;">测试</button>
+          </div>
+          <div style="color:#888;font-size:11px;margin-top:6px;">用于智能生成 Commit Message</div>
+        </div>
+      </div>
+
+      <!-- 镜像加速 -->
+      <div>
+        <div style="display:flex;align-items:center;margin-bottom:8px;">
+          <span style="font-size:18px;margin-right:8px;">⚡</span>
+          <span style="color:#ddd;font-weight:600;">Git 镜像加速</span>
+        </div>
+        <div style="background:#212130;border-radius:6px;padding:10px;">
+          <div style="display:flex;align-items:center;gap:8px;">
+            <span style="color:#888;">镜像源:</span>
+            <select style="background:#2a2a40;border:1px solid #3a3a5e;border-radius:4px;padding:4px 8px;color:#ddd;font-size:12px;flex:1;">
+              <option>自动选择 (基于地理位置)</option>
+              <option>gitee.com/mirrors (Gitee 镜像)</option>
+              <option>hub.fastgit.xyz (FastGit)</option>
+              <option>ghproxy.com (代理)</option>
+              <option>kkgithub.com (KKGit)</option>
+              <option>自定义</option>
+            </select>
+          </div>
+          <div style="margin-top:6px;display:flex;gap:12px;">
+            <label style="color:#888;font-size:11px;"><input type="checkbox" checked /> 自动替换 GitHub 地址</label>
+            <label style="color:#888;font-size:11px;"><input type="checkbox" /> 仅对 Clone 生效</label>
+          </div>
+          <div style="background:#1a2a1a;border:1px solid #2a4a2a;border-radius:4px;padding:6px 8px;margin-top:6px;color:#98c379;font-size:11px;">
+            ✅ 当前延迟: 56ms (Gitee 镜像) — 推荐使用
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section" style="background:#1e1e30;border-radius:8px;padding:16px;">
+  <h3>国内特色功能清单</h3>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:8px;">
+    <div style="background:#212130;border-radius:6px;padding:10px;">
+      <h4 style="color:#e5c07b;margin:0 0 4px 0;">🟢 Gitee 深度集成</h4>
+      <ul style="margin:0;padding-left:16px;">
+        <li>Gitee OAuth 登录/Token 管理</li>
+        <li>一键创建 PR/Issue 到 Gitee</li>
+        <li>Gitee 仓库搜索与克隆</li>
+        <li>提交消息 Gitee Issue 链接识别</li>
+      </ul>
+    </div>
+    <div style="background:#212130;border-radius:6px;padding:10px;">
+      <h4 style="color:#61afef;margin:0 0 4px 0;">🤖 国内 AI 服务</h4>
+      <ul style="margin:0;padding-left:16px;">
+        <li>支持 DeepSeek / 通义千问 / 文心一言</li>
+        <li>OpenAI 兼容协议，可接入私有部署</li>
+        <li>智能生成 Commit Message</li>
+        <li>自定义 Prompt 模板</li>
+      </ul>
+    </div>
+    <div style="background:#212130;border-radius:6px;padding:10px;">
+      <h4 style="color:#98c379;margin:0 0 4px 0;">⚡ Git 镜像加速</h4>
+      <ul style="margin:0;padding-left:16px;">
+        <li>自动检测最佳镜像源</li>
+        <li>Gitee 镜像 / FastGit / GhProxy 等</li>
+        <li>Clone / Fetch / Submodule 自动加速</li>
+        <li>支持自定义镜像地址</li>
+      </ul>
+    </div>
+    <div style="background:#212130;border-radius:6px;padding:10px;">
+      <h4 style="color:#c678dd;margin:0 0 4px 0;">🌐 多平台支持</h4>
+      <ul style="margin:0;padding-left:16px;">
+        <li>Gitee / Coding / 腾讯工蜂 / 华为CodeHub</li>
+        <li>一键创建 PR 到各平台</li>
+        <li>Issue 链接识别 (正则+URL模板)</li>
+        <li>平台隔离的 SSH 密钥配置</li>
+      </ul>
+    </div>
+  </div>
+</div>

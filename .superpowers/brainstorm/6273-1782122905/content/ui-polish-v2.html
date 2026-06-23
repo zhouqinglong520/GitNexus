@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #0d1117; color: #c9d1d9; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans SC', sans-serif; font-size: 13px; padding: 20px; }
+  h2 { color: #f0f6fc; font-size: 18px; margin-bottom: 4px; }
+  .subtitle { color: #8b949e; font-size: 13px; margin-bottom: 16px; }
+  .section { margin-bottom: 20px; }
+  .mockup { border: 1px solid #30363d; border-radius: 10px; overflow: hidden; }
+  .mockup-header { background: #161b22; padding: 10px 16px; font-size: 12px; color: #8b949e; border-bottom: 1px solid #21262d; font-weight: 600; letter-spacing: 0.5px; }
+  .note { background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 14px 16px; margin-top: 12px; }
+  .note h4 { color: #58a6ff; font-size: 13px; margin-bottom: 6px; }
+  .note p, .note li { color: #8b949e; font-size: 12px; line-height: 1.7; }
+  .note ul { padding-left: 16px; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .color-swatch { display: inline-block; width: 28px; height: 28px; border-radius: 6px; vertical-align: middle; margin-right: 4px; }
+  .tag { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: 500; }
+</style>
+</head>
+<body>
+
+<h2>GitUI v2.0 — UI 美化优化设计</h2>
+<p class="subtitle">保持三栏架构不变，优化视觉层次、间距、色彩、图标和交互细节</p>
+
+<!-- ==================== 1. 整体布局 ==================== -->
+<div class="section">
+  <div class="mockup">
+    <!-- 优化后的菜单栏 -->
+    <div style="background:#161b22;padding:0 12px;display:flex;align-items:center;height:36px;border-bottom:1px solid #21262d;font-size:13px;">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#58a6ff" stroke-width="2" style="margin-right:10px;"><circle cx="12" cy="12" r="3"/><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
+      <span style="color:#f0f6fc;font-weight:600;font-size:13px;margin-right:20px;">GitUI</span>
+      <div style="display:flex;gap:2px;">
+        <div style="padding:4px 10px;border-radius:4px;color:#c9d1d9;cursor:pointer;">文件</div>
+        <div style="padding:4px 10px;border-radius:4px;color:#c9d1d9;cursor:pointer;">编辑</div>
+        <div style="padding:4px 10px;border-radius:4px;color:#c9d1d9;cursor:pointer;">查看</div>
+        <div style="padding:4px 10px;border-radius:4px;color:#c9d1d9;cursor:pointer;">仓库</div>
+        <div style="padding:4px 10px;border-radius:4px;color:#c9d1d9;cursor:pointer;">GitFlow</div>
+        <div style="padding:4px 10px;border-radius:4px;color:#c9d1d9;cursor:pointer;">帮助</div>
+      </div>
+      <div style="flex:1;"></div>
+      <!-- 仓库标签 -->
+      <div style="display:flex;gap:2px;margin-right:8px;">
+        <div style="padding:3px 12px;background:#0d419d;border-radius:6px 6px 0 0;color:#58a6ff;font-size:12px;display:flex;align-items:center;gap:4px;">
+          <svg width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2"><circle cx="6" cy="6" r="4"/><line x1="6" y1="3" x2="6" y2="9"/></svg>
+          my-project
+          <span style="color:#484f58;font-size:10px;margin-left:2px;">×</span>
+        </div>
+        <div style="padding:3px 12px;background:#21262d;border-radius:6px 6px 0 0;color:#8b949e;font-size:12px;display:flex;align-items:center;gap:4px;">
+          backend-api
+          <span style="color:#484f58;font-size:10px;margin-left:2px;">×</span>
+        </div>
+      </div>
+      <!-- 窗口控制 -->
+      <div style="display:flex;gap:8px;align-items:center;">
+        <div style="width:12px;height:12px;border-radius:50%;background:#f85149;"></div>
+        <div style="width:12px;height:12px;border-radius:50%;background:#d29922;"></div>
+        <div style="width:12px;height:12px;border-radius:50%;background:#3fb950;"></div>
+      </div>
+    </div>
+
+    <div style="display:flex;height:420px;">
+      <!-- 左侧面板 - 优化后 -->
+      <div style="width:240px;background:#0d1117;border-right:1px solid #21262d;display:flex;flex-direction:column;">
+        <!-- 搜索框 -->
+        <div style="padding:8px 10px;">
+          <div style="background:#161b22;border:1px solid #30363d;border-radius:6px;padding:6px 10px 6px 32px;color:#484f58;font-size:12px;position:relative;">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="#484f58" stroke-width="1.5" style="position:absolute;left:10px;top:50%;transform:translateY(-50%);"><circle cx="7" cy="7" r="5"/><line x1="11" y1="11" x2="14" y2="14"/></svg>
+            搜索分支、标签...
+          </div>
+        </div>
+
+        <!-- 页面切换 -->
+        <div style="display:flex;padding:0 10px 8px;gap:4px;">
+          <div style="flex:1;padding:5px;text-align:center;background:#161b22;border:1px solid #30363d;border-radius:6px;color:#58a6ff;font-size:12px;font-weight:500;">历史</div>
+          <div style="flex:1;padding:5px;text-align:center;border:1px solid transparent;border-radius:6px;color:#484f58;font-size:12px;">工作区</div>
+          <div style="flex:1;padding:5px;text-align:center;border:1px solid transparent;border-radius:6px;color:#484f58;font-size:12px;">Stash</div>
+        </div>
+
+        <!-- 分支树 -->
+        <div style="flex:1;overflow:auto;padding:0 6px;">
+          <!-- 本地分支 -->
+          <div style="padding:6px 8px 4px;color:#8b949e;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;display:flex;align-items:center;gap:4px;">
+            <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="#8b949e" stroke-width="1.5"><circle cx="8" cy="4" r="2"/><line x1="8" y1="6" x2="8" y2="14"/><line x1="6" y1="10" x2="10" y2="10"/></svg>
+            本地分支
+          </div>
+          <div style="padding:4px 8px 4px 20px;border-radius:4px;color:#3fb950;font-size:12px;display:flex;align-items:center;gap:6px;background:#0d1117;">
+            <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="#3fb950" stroke-width="1.5"><circle cx="8" cy="4" r="2"/><line x1="8" y1="6" x2="8" y2="14"/><line x1="6" y1="10" x2="10" y2="10"/></svg>
+            main
+            <span class="tag" style="background:#12261e;color:#3fb950;margin-left:auto;">HEAD</span>
+          </div>
+          <div style="padding:4px 8px 4px 20px;border-radius:4px;color:#c9d1d9;font-size:12px;display:flex;align-items:center;gap:6px;">
+            <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="#8b949e" stroke-width="1.5"><circle cx="8" cy="4" r="2"/><line x1="8" y1="6" x2="8" y2="14"/><line x1="6" y1="10" x2="10" y2="10"/></svg>
+            feature/login
+          </div>
+          <div style="padding:4px 8px 4px 20px;border-radius:4px;color:#c9d1d9;font-size:12px;display:flex;align-items:center;gap:6px;">
+            <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="#8b949e" stroke-width="1.5"><circle cx="8" cy="4" r="2"/><line x1="8" y1="6" x2="8" y2="14"/><line x1="6" y1="10" x2="10" y2="10"/></svg>
+            develop
+          </div>
+          <div style="padding:4px 8px 4px 20px;border-radius:4px;color:#c9d1d9;font-size:12px;display:flex;align-items:center;gap:6px;">
+            <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="#8b949e" stroke-width="1.5"><circle cx="8" cy="4" r="2"/><line x1="8" y1="6" x2="8" y2="14"/><line x1="6" y1="10" x2="10" y2="10"/></svg>
+            hotfix/v1.1
+          </div>
+
+          <!-- 远程分支 -->
+          <div style="padding:10px 8px 4px;color:#8b949e;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;display:flex;align-items:center;gap:4px;">
+            <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="#8b949e" stroke-width="1.5"><path d="M4 4h8M4 8h8M4 12h5"/></svg>
+            远程分支
+          </div>
+          <div style="padding:4px 8px 4px 20px;border-radius:4px;color:#c9d1d9;font-size:12px;display:flex;align-items:center;gap:6px;">
+            <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="#58a6ff" stroke-width="1.5"><path d="M4 4h8M4 8h8M4 12h5"/></svg>
+            <span style="color:#58a6ff;">origin/</span>main
+          </div>
+          <div style="padding:4px 8px 4px 20px;border-radius:4px;color:#c9d1d9;font-size:12px;display:flex;align-items:center;gap:6px;">
+            <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="#58a6ff" stroke-width="1.5"><path d="M4 4h8M4 8h8M4 12h5"/></svg>
+            <span style="color:#58a6ff;">origin/</span>develop
+          </div>
+
+          <!-- 标签 -->
+          <div style="padding:10px 8px 4px;color:#8b949e;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;display:flex;align-items:center;gap:4px;">
+            <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="#8b949e" stroke-width="1.5"><path d="M2 2l4 12 2-5 5-2z"/></svg>
+            标签
+          </div>
+          <div style="padding:4px 8px 4px 20px;border-radius:4px;color:#c9d1d9;font-size:12px;display:flex;align-items:center;gap:6px;">
+            <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="#d29922" stroke-width="1.5"><path d="M2 2l4 12 2-5 5-2z"/></svg>
+            <span style="color:#d29922;">v1.0.0</span>
+          </div>
+          <div style="padding:4px 8px 4px 20px;border-radius:4px;color:#c9d1d9;font-size:12px;display:flex;align-items:center;gap:6px;">
+            <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="#d29922" stroke-width="1.5"><path d="M2 2l4 12 2-5 5-2z"/></svg>
+            <span style="color:#d29922;">v1.1.0</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 主内容区 -->
+      <div style="flex:1;background:#010409;display:flex;flex-direction:column;">
+        <!-- 进行中提示 -->
+        <div style="background:#1c2128;border-bottom:1px solid #30363d;padding:6px 14px;display:flex;align-items:center;gap:8px;font-size:12px;">
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="#d29922" stroke-width="1.5"><path d="M8 1v6M8 11v1M8 6a3 3 0 100 6 3 3 0 000-6z"/></svg>
+          <span style="color:#d29922;">变基操作进行中</span>
+          <span style="color:#8b949e;">—</span>
+          <span style="color:#c9d1d9;">3/5 步完成</span>
+          <span style="color:#f85149;">1 步冲突</span>
+          <div style="flex:1;"></div>
+          <div style="display:flex;gap:6px;">
+            <span style="padding:2px 10px;background:#21262d;border:1px solid #30363d;border-radius:4px;color:#c9d1d9;font-size:11px;cursor:pointer;">打开编辑器</span>
+            <span style="padding:2px 10px;background:#21262d;border:1px solid #30363d;border-radius:4px;color:#c9d1d9;font-size:11px;cursor:pointer;">继续</span>
+            <span style="padding:2px 10px;background:#21262d;border:1px solid #30363d;border-radius:4px;color:#c9d1d9;font-size:11px;cursor:pointer;">跳过</span>
+            <span style="padding:2px 10px;background:#3d1214;border:1px solid #6e2c2c;border-radius:4px;color:#f85149;font-size:11px;cursor:pointer;">终止</span>
+          </div>
+        </div>
+
+        <!-- 过滤标签 -->
+        <div style="display:flex;padding:6px 14px;gap:6px;border-bottom:1px solid #21262d;align-items:center;">
+          <span class="tag" style="background:#0d419d;color:#58a6ff;">全部</span>
+          <span class="tag" style="background:#21262d;color:#8b949e;">今天</span>
+          <span class="tag" style="background:#21262d;color:#8b949e;">未推送</span>
+          <span class="tag" style="background:#21262d;color:#8b949e;">仅第一父提交</span>
+          <div style="flex:1;"></div>
+          <span style="color:#484f58;font-size:11px;">1,234 commits</span>
+        </div>
+
+        <!-- 提交列表 -->
+        <div style="flex:1;overflow:auto;">
+          <!-- 行1 -->
+          <div style="display:flex;align-items:center;padding:6px 14px;border-bottom:1px solid #161b22;font-size:12px;">
+            <div style="width:80px;height:22px;">
+              <svg width="80" height="22" viewBox="0 0 80 22"><circle cx="10" cy="11" r="3" fill="#f47067"/><line x1="10" y1="11" x2="45" y2="11" stroke="#f47067" stroke-width="1.5" opacity="0.5"/><line x1="45" y1="11" x2="65" y2="11" stroke="#3fb950" stroke-width="1.5" opacity="0.4"/><circle cx="65" cy="11" r="3" fill="#3fb950"/></svg>
+            </div>
+            <div style="flex:1;color:#c9d1d9;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:0 8px;">
+              <span style="color:#3fb950;margin-right:4px;">feat:</span> 添加用户登录页面
+            </div>
+            <div style="width:26px;height:26px;border-radius:50%;background:#161b22;margin:0 8px;display:flex;align-items:center;justify-content:center;">
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="#8b949e" stroke-width="1.2"><circle cx="8" cy="5" r="3"/><path d="M2 14c0-3 3-5 6-5s6 2 6 5"/></svg>
+            </div>
+            <div style="width:70px;color:#8b949e;font-size:11px;">张三</div>
+            <div style="width:62px;color:#58a6ff;font-family:'SF Mono',monospace;font-size:11px;">a1b2c3d</div>
+            <div style="width:60px;color:#484f58;font-size:11px;">2小时前</div>
+          </div>
+          <!-- 行2 -->
+          <div style="display:flex;align-items:center;padding:6px 14px;border-bottom:1px solid #161b22;font-size:12px;">
+            <div style="width:80px;height:22px;">
+              <svg width="80" height="22" viewBox="0 0 80 22"><line x1="10" y1="0" x2="10" y2="22" stroke="#f47067" stroke-width="1.5" opacity="0.4"/><circle cx="10" cy="11" r="3" fill="#f47067"/><line x1="10" y1="11" x2="50" y2="11" stroke="#3fb950" stroke-width="1.5" opacity="0.4"/><circle cx="50" cy="11" r="3" fill="#3fb950"/></svg>
+            </div>
+            <div style="flex:1;color:#c9d1d9;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:0 8px;">
+              <span style="color:#f47067;margin-right:4px;">fix:</span> 修复用户注册验证逻辑
+            </div>
+            <div style="width:26px;height:26px;border-radius:50%;background:#161b22;margin:0 8px;display:flex;align-items:center;justify-content:center;">
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="#8b949e" stroke-width="1.2"><circle cx="8" cy="5" r="3"/><path d="M2 14c0-3 3-5 6-5s6 2 6 5"/></svg>
+            </div>
+            <div style="width:70px;color:#8b949e;font-size:11px;">李四</div>
+            <div style="width:62px;color:#58a6ff;font-family:'SF Mono',monospace;font-size:11px;">b2c3d4e</div>
+            <div style="width:60px;color:#484f58;font-size:11px;">4小时前</div>
+          </div>
+          <!-- 行3 HEAD -->
+          <div style="display:flex;align-items:center;padding:6px 14px;border-bottom:1px solid #161b22;font-size:12px;background:#0d1926;">
+            <div style="width:80px;height:22px;">
+              <svg width="80" height="22" viewBox="0 0 80 22"><line x1="10" y1="0" x2="10" y2="22" stroke="#3fb950" stroke-width="1.5" opacity="0.4"/><circle cx="10" cy="11" r="5" fill="none" stroke="#3fb950" stroke-width="1.5"/><circle cx="10" cy="11" r="2.5" fill="#3fb950"/><line x1="10" y1="11" x2="55" y2="11" stroke="#d29922" stroke-width="1.5" opacity="0.5"/><circle cx="55" cy="11" r="3" fill="#d29922"/></svg>
+            </div>
+            <div style="flex:1;color:#f0f6fc;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:0 8px;font-weight:500;">
+              <span style="color:#58a6ff;margin-right:4px;">docs:</span> 更新API文档
+            </div>
+            <span class="tag" style="background:#12261e;color:#3fb950;font-size:10px;">HEAD</span>
+            <div style="width:26px;height:26px;border-radius:50%;background:#161b22;margin:0 8px;display:flex;align-items:center;justify-content:center;">
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="#8b949e" stroke-width="1.2"><circle cx="8" cy="5" r="3"/><path d="M2 14c0-3 3-5 6-5s6 2 6 5"/></svg>
+            </div>
+            <div style="width:70px;color:#8b949e;font-size:11px;">王五</div>
+            <div style="width:62px;color:#58a6ff;font-family:'SF Mono',monospace;font-size:11px;">c3d4e5f</div>
+            <div style="width:60px;color:#484f58;font-size:11px;">昨天</div>
+          </div>
+          <!-- 行4 Merge -->
+          <div style="display:flex;align-items:center;padding:6px 14px;border-bottom:1px solid #161b22;font-size:12px;">
+            <div style="width:80px;height:22px;">
+              <svg width="80" height="22" viewBox="0 0 80 22"><line x1="10" y1="0" x2="10" y2="22" stroke="#d29922" stroke-width="1.5" opacity="0.4"/><circle cx="10" cy="11" r="3" fill="#d29922"/><line x1="10" y1="11" x2="35" y2="11" stroke="#d29922" stroke-width="1.5" opacity="0.3"/><line x1="35" y1="11" x2="35" y2="6" stroke="#bc8cff" stroke-width="1.5" opacity="0.4"/><line x1="35" y1="11" x2="35" y2="16" stroke="#39d2c0" stroke-width="1.5" opacity="0.4"/><circle cx="35" cy="6" r="3" fill="#bc8cff"/><circle cx="35" cy="16" r="3" fill="#39d2c0"/><line x1="35" y1="6" x2="55" y2="6" stroke="#bc8cff" stroke-width="1.5" opacity="0.3"/><line x1="35" y1="16" x2="55" y2="16" stroke="#39d2c0" stroke-width="1.5" opacity="0.3"/><line x1="55" y1="6" x2="55" y2="16" stroke="#bc8cff" stroke-width="1" opacity="0.3"/><line x1="55" y1="6" x2="70" y2="11" stroke="#bc8cff" stroke-width="1" opacity="0.3"/><line x1="55" y1="16" x2="70" y2="11" stroke="#39d2c0" stroke-width="1" opacity="0.3"/><rect x="67" y="8" width="6" height="6" rx="1" fill="#bc8cff" opacity="0.7"/></svg>
+            </div>
+            <div style="flex:1;color:#c9d1d9;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:0 8px;">
+              <span style="color:#bc8cff;margin-right:4px;">Merge:</span> feature/login into develop
+            </div>
+            <div style="width:26px;height:26px;border-radius:50%;background:#161b22;margin:0 8px;display:flex;align-items:center;justify-content:center;">
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="#8b949e" stroke-width="1.2"><circle cx="8" cy="5" r="3"/><path d="M2 14c0-3 3-5 6-5s6 2 6 5"/></svg>
+            </div>
+            <div style="width:70px;color:#8b949e;font-size:11px;">张三</div>
+            <div style="width:62px;color:#58a6ff;font-family:'SF Mono',monospace;font-size:11px;">d4e5f6g</div>
+            <div style="width:60px;color:#484f58;font-size:11px;">昨天</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 优化后的状态栏 -->
+    <div style="background:#161b22;border-top:1px solid #21262d;padding:4px 14px;display:flex;gap:16px;font-size:11px;align-items:center;">
+      <span style="color:#484f58;display:flex;align-items:center;gap:4px;">
+        <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="#3fb950" stroke-width="1.5"><rect x="1" y="5" width="14" height="8" rx="1"/><circle cx="5" cy="9" r="1.5"/><path d="M1 7h14"/></svg>
+        SSH: main@github.com
+      </span>
+      <span style="color:#484f58;display:flex;align-items:center;gap:4px;">
+        <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="#58a6ff" stroke-width="1.5"><path d="M4 4h8M4 8h8M4 12h5"/></svg>
+        origin
+      </span>
+      <span style="color:#484f58;display:flex;align-items:center;gap:4px;">
+        <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="#d29922" stroke-width="1.5"><path d="M13 2L3 14M11 2h2v2M2 12v2h2"/></svg>
+        镜像加速: Gitee (56ms)
+      </span>
+      <div style="flex:1;"></div>
+      <span style="color:#484f58;">Git 2.45.0</span>
+    </div>
+  </div>
+</div>
+
+<div class="note">
+  <h4>布局优化要点</h4>
+  <ul>
+    <li><strong>GitHub Dark 配色方案</strong> — 采用 GitHub 官方深色主题色系（#0d1117 背景），视觉更舒适</li>
+    <li><strong>SVG 图标替代 Emoji</strong> — 所有分支/标签/远程图标使用 SVG 矢量图标，更清晰专业</li>
+    <li><strong>标签页圆角药丸样式</strong> — 活跃标签蓝色背景，非活跃灰色，视觉层次分明</li>
+    <li><strong>HEAD 行背景高亮</strong> — 使用 #0d1926 深蓝背景，而非纯色块</li>
+    <li><strong>状态栏 SVG 图标</strong> — SSH/远程/镜像状态使用对应图标，信息密度更高</li>
+    <li><strong>搜索框内嵌图标</strong> — 搜索框左侧内嵌放大镜 SVG，交互提示更明确</li>
+    <li><strong>页面切换按钮</strong> — 活跃页带边框 + 蓝色高亮，非活跃页无边框灰色文字</li>
+    <li><strong>Conventional Commit 彩色前缀</strong> — feat(绿)/fix(红)/docs(蓝)/merge(紫) 自动着色</li>
+    <li><strong>头像占位符</strong> — 使用 SVG 人物轮廓替代文字"头像"，更美观</li>
+    <li><strong>进行中操作栏</strong> — 终止按钮使用红色边框危险样式，操作优先级一目了然</li>
+  </ul>
+</div>
+
+<!-- ==================== 2. 色彩体系 ==================== -->
+<div class="section">
+  <div class="grid2">
+    <div class="note">
+      <h4>背景色阶（4 级）</h4>
+      <p>
+        <span class="color-swatch" style="background:#010409;"></span> #010409 — 主内容区<br>
+        <span class="color-swatch" style="background:#0d1117;"></span> #0d1117 — 左侧面板/页面背景<br>
+        <span class="color-swatch" style="background:#161b22;"></span> #161b22 — 输入框/卡片/菜单栏<br>
+        <span class="color-swatch" style="background:#21262d;"></span> #21262d — 边框/分隔线
+      </p>
+    </div>
+    <div class="note">
+      <h4>语义色彩</h4>
+      <p>
+        <span class="color-swatch" style="background:#58a6ff;"></span> #58a6ff — 链接/SHA/活跃状态<br>
+        <span class="color-swatch" style="background:#3fb950;"></span> #3fb950 — 成功/新增/HEAD<br>
+        <span class="color-swatch" style="background:#f47067;"></span> #f47067 — 删除/错误/危险<br>
+        <span class="color-swatch" style="background:#d29922;"></span> #d29922 — 警告/标签<br>
+        <span class="color-swatch" style="background:#bc8cff;"></span> #bc8cff — Merge/特殊操作<br>
+        <span class="color-swatch" style="background:#39d2c0;"></span> #39d2c0 — 远程分支
+      </p>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== 3. 提交图颜色 ==================== -->
+<div class="section">
+  <div class="note">
+    <h4>提交图颜色圆盘（10 色 — GitHub 风格）</h4>
+    <p>
+      <span class="color-swatch" style="background:#f47067;"></span>
+      <span class="color-swatch" style="background:#3fb950;"></span>
+      <span class="color-swatch" style="background:#39d2c0;"></span>
+      <span class="color-swatch" style="background:#d29922;"></span>
+      <span class="color-swatch" style="background:#bc8cff;"></span>
+      <span class="color-swatch" style="background:#f0883e;"></span>
+      <span class="color-swatch" style="background:#58a6ff;"></span>
+      <span class="color-swatch" style="background:#8b949e;"></span>
+      <span class="color-swatch" style="background:#79c0ff;"></span>
+      <span class="color-swatch" style="background:#e3b341;"></span>
+    </p>
+    <p style="margin-top:8px;">非高亮路径使用 <span style="color:#30363d;">#30363d</span> 半透明笔触，与背景色阶协调</p>
+  </div>
+</div>
+
+</body>
+</html>

@@ -1,0 +1,182 @@
+<h2>整体应用布局 - 三栏结构</h2>
+<p class="subtitle">主窗口采用三栏可拖拽布局，与 SourceGit 保持一致</p>
+
+<div class="section">
+  <div class="mockup">
+    <div class="mockup-header" style="background:#1a1a2e;color:#fff;padding:8px 16px;display:flex;align-items:center;gap:12px;font-size:13px;">
+      <div style="background:#e06c75;width:14px;height:14px;border-radius:50%;"></div>
+      <div style="background:#98c379;width:14px;height:14px;border-radius:50%;"></div>
+      <div style="background:#61afef;width:14px;height:14px;border-radius:50%;"></div>
+      <span style="margin-left:12px;color:#888;">📂 文件</span>
+      <span style="color:#888;">🔄 Git</span>
+      <span style="color:#888;">⚙️ 设置</span>
+      <span style="flex:1;"></span>
+      <span style="background:#3a3a5e;padding:2px 10px;border-radius:4px;">my-project</span>
+      <span style="margin:0 4px;">📄</span>
+      <span style="margin:0 4px;">📋</span>
+      <span style="margin:0 4px;">❌</span>
+    </div>
+
+    <div style="display:flex;height:400px;">
+      <!-- 左侧面板 -->
+      <div style="width:220px;background:#212130;border-right:1px solid #2a2a40;display:flex;flex-direction:column;font-size:12px;">
+        <div style="display:flex;border-bottom:1px solid #2a2a40;">
+          <div style="flex:1;padding:8px;text-align:center;background:#2a2a45;color:#61afef;font-weight:600;">仪表盘</div>
+          <div style="flex:1;padding:8px;text-align:center;color:#666;">搜索</div>
+        </div>
+        <div style="display:flex;padding:4px;gap:4px;border-bottom:1px solid #2a2a40;">
+          <div style="flex:1;padding:6px;text-align:center;background:#3a3a5e;border-radius:4px;color:#ccc;">历史</div>
+          <div style="flex:1;padding:6px;text-align:center;border-radius:4px;color:#666;">工作区</div>
+          <div style="flex:1;padding:6px;text-align:center;border-radius:4px;color:#666;">Stash</div>
+        </div>
+        <div style="padding:8px;border-bottom:1px solid #2a2a40;">
+          <div style="display:flex;background:#2a2a40;border-radius:4px;padding:4px 8px;color:#888;">
+            🔍 过滤/搜索...
+          </div>
+        </div>
+
+        <!-- 分支树 -->
+        <div style="flex:1;overflow:auto;padding:4px;">
+          <div style="color:#e5c07b;font-weight:600;padding:4px 8px;font-size:11px;">本地分支</div>
+          <div style="padding:3px 8px 3px 16px;color:#98c379;">🌿 main</div>
+          <div style="padding:3px 8px 3px 16px;color:#e06c75;">🌿 feature/login</div>
+          <div style="padding:3px 8px 3px 16px;color:#61afef;">🌿 develop</div>
+          <div style="padding:3px 8px 3px 16px;color:#c678dd;">🌿 hotfix/v1.1</div>
+          <div style="color:#e5c07b;font-weight:600;padding:8px 8px 4px;font-size:11px;margin-top:8px;">远程分支</div>
+          <div style="padding:3px 8px 3px 16px;color:#56b6c2;">☁️ origin/main</div>
+          <div style="padding:3px 8px 3px 16px;color:#56b6c2;">☁️ origin/develop</div>
+          <div style="color:#e5c07b;font-weight:600;padding:8px 8px 4px;font-size:11px;margin-top:8px;">标签</div>
+          <div style="padding:3px 8px 3px 16px;color:#d19a66;">🏷️ v1.0.0</div>
+          <div style="padding:3px 8px 3px 16px;color:#d19a66;">🏷️ v1.1.0</div>
+        </div>
+      </div>
+
+      <!-- 分隔条 -->
+      <div style="width:4px;background:#2a2a40;cursor:col-resize;"></div>
+
+      <!-- 主内容区 -->
+      <div style="flex:1;background:#1a1a2e;display:flex;flex-direction:column;">
+        <!-- 提示栏 -->
+        <div style="background:#2d2d1a;padding:4px 12px;font-size:11px;color:#e5c07b;border-bottom:1px solid #3a3a40;">
+          ⚠️ 变基操作进行中（3步完成，1步冲突）
+        </div>
+        <!-- 过滤标签栏 -->
+        <div style="display:flex;padding:6px 12px;gap:6px;border-bottom:1px solid #2a2a40;font-size:11px;">
+          <span style="background:#3a3a5e;padding:2px 8px;border-radius:10px;color:#61afef;">全部</span>
+          <span style="background:#2a2a40;padding:2px 8px;border-radius:10px;color:#888;">今天</span>
+          <span style="background:#2a2a40;padding:2px 8px;border-radius:10px;color:#888;">未推送</span>
+        </div>
+
+        <!-- 提交列表区域 -->
+        <div style="flex:1;overflow:auto;padding:4px 0;">
+          <!-- 行1 -->
+          <div style="display:flex;align-items:center;padding:3px 12px;border-bottom:1px solid #1f1f30;font-size:12px;">
+            <div style="width:70px;height:20px;position:relative;">
+              <svg width="70" height="20" viewBox="0 0 70 20"><circle cx="8" cy="10" r="3" fill="#e06c75"/><line x1="8" y1="10" x2="40" y2="10" stroke="#e06c75" stroke-width="1.5" opacity="0.6"/><line x1="40" y1="10" x2="60" y2="10" stroke="#98c379" stroke-width="1.5" opacity="0.4"/><circle cx="60" cy="10" r="3" fill="#98c379"/></svg>
+            </div>
+            <div style="flex:1;color:#ddd;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">✨ feat: 添加用户登录页面</div>
+            <div style="width:24px;height:24px;border-radius:50%;background:#3a3a5e;margin:0 8px;font-size:8px;display:flex;align-items:center;justify-content:center;color:#888;">头像</div>
+            <div style="width:80px;color:#888;overflow:hidden;text-overflow:ellipsis;">张三</div>
+            <div style="width:64px;color:#61afef;font-family:monospace;font-size:11px;">a1b2c3d</div>
+            <div style="width:70px;color:#666;">2小时前</div>
+          </div>
+          <!-- 行2 -->
+          <div style="display:flex;align-items:center;padding:3px 12px;border-bottom:1px solid #1f1f30;font-size:12px;">
+            <div style="width:70px;height:20px;position:relative;">
+              <svg width="70" height="20" viewBox="0 0 70 20"><line x1="8" y1="0" x2="8" y2="20" stroke="#e06c75" stroke-width="1.5" opacity="0.6"/><circle cx="8" cy="10" r="3" fill="#e06c75"/><line x1="8" y1="10" x2="50" y2="10" stroke="#98c379" stroke-width="1.5" opacity="0.4"/><circle cx="50" cy="10" r="3" fill="#98c379"/></svg>
+            </div>
+            <div style="flex:1;color:#ddd;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">🐛 fix: 修复用户注册验证逻辑</div>
+            <div style="width:24px;height:24px;border-radius:50%;background:#3a3a5e;margin:0 8px;font-size:8px;display:flex;align-items:center;justify-content:center;color:#888;">头像</div>
+            <div style="width:80px;color:#888;overflow:hidden;text-overflow:ellipsis;">李四</div>
+            <div style="width:64px;color:#61afef;font-family:monospace;font-size:11px;">b2c3d4e</div>
+            <div style="width:70px;color:#666;">4小时前</div>
+          </div>
+          <!-- 行3 (HEAD) -->
+          <div style="display:flex;align-items:center;padding:3px 12px;border-bottom:1px solid #1f1f30;font-size:12px;background:#1a1a38;">
+            <div style="width:70px;height:20px;position:relative;">
+              <svg width="70" height="20" viewBox="0 0 70 20"><line x1="8" y1="0" x2="8" y2="20" stroke="#98c379" stroke-width="1.5" opacity="0.6"/><circle cx="8" cy="10" r="5" fill="none" stroke="#98c379" stroke-width="1.5"/><circle cx="8" cy="10" r="3" fill="#98c379"/><line x1="8" y1="10" x2="55" y2="10" stroke="#e5c07b" stroke-width="1.5" opacity="0.6"/><circle cx="55" cy="10" r="3" fill="#e5c07b"/></svg>
+            </div>
+            <div style="flex:1;color:#fff;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">📝 docs: 更新API文档</div>
+            <span style="background:#98c379;color:#1a1a2e;padding:1px 6px;border-radius:3px;font-size:10px;font-weight:600;">HEAD</span>
+            <div style="width:24px;height:24px;border-radius:50%;background:#3a3a5e;margin:0 8px;font-size:8px;display:flex;align-items:center;justify-content:center;color:#888;">头像</div>
+            <div style="width:80px;color:#888;overflow:hidden;text-overflow:ellipsis;">王五</div>
+            <div style="width:64px;color:#61afef;font-family:monospace;font-size:11px;">c3d4e5f</div>
+            <div style="width:70px;color:#666;">昨天</div>
+          </div>
+          <!-- 行4 (MERGE) -->
+          <div style="display:flex;align-items:center;padding:3px 12px;border-bottom:1px solid #1f1f30;font-size:12px;">
+            <div style="width:70px;height:20px;position:relative;">
+              <svg width="70" height="20" viewBox="0 0 70 20"><line x1="8" y1="0" x2="8" y2="20" stroke="#e5c07b" stroke-width="1.5" opacity="0.6"/><circle cx="8" cy="10" r="3" fill="#e5c07b"/><line x1="8" y1="10" x2="30" y2="10" stroke="#e5c07b" stroke-width="1.5" opacity="0.4"/><line x1="30" y1="10" x2="30" y2="6" stroke="#c678dd" stroke-width="1.5" opacity="0.4"/><line x1="30" y1="10" x2="30" y2="14" stroke="#56b6c2" stroke-width="1.5" opacity="0.4"/><circle cx="30" cy="6" r="3" fill="#c678dd"/><circle cx="30" cy="14" r="3" fill="#56b6c2"/><line x1="30" y1="6" x2="45" y2="6" stroke="#c678dd" stroke-width="1.5" opacity="0.4"/><line x1="30" y1="14" x2="45" y2="14" stroke="#56b6c2" stroke-width="1.5" opacity="0.4"/><line x1="45" y1="6" x2="45" y2="14" stroke="#c678dd" stroke-width="1.5" opacity="0.4"/><line x1="45" y1="6" x2="60" y2="10" stroke="#c678dd" stroke-width="1" opacity="0.4"/><line x1="45" y1="14" x2="60" y2="10" stroke="#56b6c2" stroke-width="1" opacity="0.4"/><text x="60" y="13" font-size="8" fill="#c678dd" font-weight="bold">✚</text></svg>
+            </div>
+            <div style="flex:1;color:#ddd;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">🔀 Merge: feature/login into develop</div>
+            <div style="width:24px;height:24px;border-radius:50%;background:#3a3a5e;margin:0 8px;font-size:8px;display:flex;align-items:center;justify-content:center;color:#888;">头像</div>
+            <div style="width:80px;color:#888;overflow:hidden;text-overflow:ellipsis;">张三</div>
+            <div style="width:64px;color:#61afef;font-family:monospace;font-size:11px;">d4e5f6g</div>
+            <div style="width:70px;color:#666;">昨天</div>
+          </div>
+          <!-- 行5 -->
+          <div style="display:flex;align-items:center;padding:3px 12px;border-bottom:1px solid #1f1f30;font-size:12px;">
+            <div style="width:70px;height:20px;position:relative;">
+              <svg width="70" height="20" viewBox="0 0 70 20"><line x1="7" y1="0" x2="7" y2="20" stroke="#56b6c2" stroke-width="1.5" opacity="0.6"/><circle cx="7" cy="10" r="3" fill="#56b6c2"/><line x1="7" y1="10" x2="40" y2="10" stroke="#56b6c2" stroke-width="1.5" opacity="0.4"/><circle cx="40" cy="10" r="3" fill="#56b6c2"/></svg>
+            </div>
+            <div style="flex:1;color:#ddd;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">⚡ perf: 优化数据库查询性能</div>
+            <div style="width:24px;height:24px;border-radius:50%;background:#3a3a5e;margin:0 8px;font-size:8px;display:flex;align-items:center;justify-content:center;color:#888;">头像</div>
+            <div style="width:80px;color:#888;overflow:hidden;text-overflow:ellipsis;">赵六</div>
+            <div style="width:64px;color:#61afef;font-family:monospace;font-size:11px;">e5f6g7h</div>
+            <div style="width:70px;color:#666;">3天前</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div style="background:#1a1a2e;color:#666;padding:4px 12px;font-size:11px;border-top:1px solid #2a2a40;display:flex;gap:16px;">
+      <span>🔑 SSH: main@github.com</span>
+      <span>📡 远程: origin</span>
+      <span>⚡ 加速: 已启用 (npmjs.org→npmmirror.com)</span>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>设计要点</h3>
+  <div class="pros-cons">
+    <div class="pros">
+      <h4>布局特性</h4>
+      <ul>
+        <li>三栏可拖拽布局（左栏 200-500px）</li>
+        <li>自定义标题栏，全平台原生窗口控制</li>
+        <li>左侧面板：仪表盘/搜索切换 + 分支/标签/子模块树</li>
+        <li>主内容区：提交流 + 提交详情（上下/左右可切换）</li>
+        <li>状态栏显示SSH、远程仓库、镜像加速状态</li>
+      </ul>
+    </div>
+    <div class="cons">
+      <h4>颜色标识</h4>
+      <ul>
+        <li>🔴 橙红 - 分支一颜色</li>
+        <li>🟢 绿色 - 分支二颜色</li>
+        <li>🟡 黄色 - HEAD 高亮</li>
+        <li>🟣 紫色 - Merge 提交标记（十字）</li>
+        <li>当前 HEAD 行背景高亮</li>
+        <li>标签徽标圆角显示</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<div class="section" style="background:#1e1e30;border-radius:8px;padding:16px;">
+  <h3>颜色圆盘（10色循环分配）</h3>
+  <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap;">
+    <div style="width:32px;height:32px;border-radius:50%;background:#e06c75;"></div>
+    <div style="width:32px;height:32px;border-radius:50%;background:#98c379;"></div>
+    <div style="width:32px;height:32px;border-radius:50%;background:#56b6c2;"></div>
+    <div style="width:32px;height:32px;border-radius:50%;background:#d19a66;"></div>
+    <div style="width:32px;height:32px;border-radius:50%;background:#c678dd;"></div>
+    <div style="width:32px;height:32px;border-radius:50%;background:#e5c07b;"></div>
+    <div style="width:32px;height:32px;border-radius:50%;background:#61afef;"></div>
+    <div style="width:32px;height:32px;border-radius:50%;background:#abb2bf;"></div>
+    <div style="width:32px;height:32px;border-radius:50%;background:#7ec8e3;"></div>
+    <div style="width:32px;height:32px;border-radius:50%;background:#be5046;"></div>
+  </div>
+  <p class="subtitle" style="margin-top:8px;">提交图中每一条路径自动分配一种颜色，非高亮路径半透明灰色显示</p>
+</div>

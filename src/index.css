@@ -1,0 +1,89 @@
+@import "tailwindcss";
+
+:root {
+  /* Catppuccin Mocha Theme */
+  --bg-base: #1e1e2e;
+  --bg-surface: #181825;
+  --bg-overlay: #313244;
+  --bg-mantle: #1a1a2e;
+  --text-primary: #cdd6f4;
+  --text-secondary: #a6adc8;
+  --text-subtle: #6c7086;
+  --accent-blue: #89b4fa;
+  --accent-green: #a6e3a1;
+  --accent-red: #f38ba8;
+  --accent-yellow: #f9e2af;
+  --accent-peach: #fab387;
+  --accent-mauve: #cba6f7;
+  --accent-teal: #94e2d5;
+  --accent-pink: #f5c2e7;
+  --accent-lavender: #b4befe;
+  --border-color: #45475a;
+  --scrollbar: #585b70;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html, body, #root {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans SC', sans-serif;
+  background-color: var(--bg-base);
+  color: var(--text-primary);
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--bg-surface);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--scrollbar);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-subtle);
+}
+
+/* Selection */
+::selection {
+  background: var(--accent-blue);
+  color: var(--bg-base);
+}
+
+/* Focus outline */
+*:focus-visible {
+  outline: 2px solid var(--accent-blue);
+  outline-offset: 1px;
+}
+
+/* Custom utilities */
+.text-primary { color: var(--text-primary); }
+.text-secondary { color: var(--text-secondary); }
+.text-subtle { color: var(--text-subtle); }
+.bg-base { background-color: var(--bg-base); }
+.bg-surface { background-color: var(--bg-surface); }
+.bg-overlay { background-color: var(--bg-overlay); }
+.bg-mantle { background-color: var(--bg-mantle); }
+.border-themed { border-color: var(--border-color); }
+
+.accent-blue { color: var(--accent-blue); }
+.accent-green { color: var(--accent-green); }
+.accent-red { color: var(--accent-red); }
+.accent-yellow { color: var(--accent-yellow); }
+.accent-peach { color: var(--accent-peach); }
+.accent-mauve { color: var(--accent-mauve); }
+.accent-teal { color: var(--accent-teal); }
+.accent-pink { color: var(--accent-pink); }
+.accent-lavender { color: var(--accent-lavender); }

@@ -1,0 +1,189 @@
+<h2>提交详情 + Diff 视图（全景展示）</h2>
+<p class="subtitle">下半部分提交详情面板，支持多类型 Diff</p>
+
+<div class="mockup">
+  <div style="display:flex;flex-direction:column;min-height:450px;">
+    <!-- 提交基本信息 -->
+    <div style="display:flex;background:#212130;padding:12px 16px;border-bottom:1px solid #2a2a40;font-size:12px;">
+      <div style="flex:1;">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+          <span style="color:#61afef;font-family:monospace;font-size:13px;">a1b2c3d4e5f6</span>
+          <span style="background:#3a3a5e;color:#e5c07b;padding:1px 6px;border-radius:3px;font-size:10px;">HEAD</span>
+          <span style="background:#3a3a5e;color:#98c379;padding:1px 6px;border-radius:3px;font-size:10px;">main</span>
+        </div>
+        <div style="display:flex;gap:20px;">
+          <span style="color:#888;">作者: <span style="color:#ddd;">张三</span> <span style="color:#666;">zhangsan@example.com</span></span>
+          <span style="color:#888;">时间: <span style="color:#ddd;">2026-06-21 14:30</span></span>
+        </div>
+        <div style="color:#888;margin-top:4px;">父提交: <span style="color:#56b6c2;font-family:monospace;">f6e5d4c3b2a1</span></div>
+      </div>
+      <div style="display:flex;gap:6px;align-items:start;">
+        <button style="background:#2a2a40;border:1px solid #3a3a5e;color:#888;padding:4px 12px;border-radius:4px;font-size:11px;">👤 Blame</button>
+        <button style="background:#2a2a40;border:1px solid #3a3a5e;color:#888;padding:4px 12px;border-radius:4px;font-size:11px;">📋 复制SHA</button>
+        <button style="background:#2a2a40;border:1px solid #3a3a5e;color:#888;padding:4px 12px;border-radius:4px;font-size:11px;">🔀 Cherry-pick</button>
+        <button style="background:#2a2a40;border:1px solid #3a3a5e;color:#888;padding:4px 12px;border-radius:4px;font-size:11px;">↩️ Revert</button>
+      </div>
+    </div>
+
+    <!-- 变更文件树 -->
+    <div style="display:flex;">
+      <div style="width:240px;background:#1e1e30;border-right:1px solid #2a2a40;overflow:auto;">
+        <div style="padding:6px 10px;display:flex;align-items:center;gap:8px;border-bottom:1px solid #2a2a40;">
+          <span style="color:#aaa;font-size:11px;font-weight:500;">变更文件 (6)</span>
+          <span style="flex:1;"></span>
+          <span style="color:#888;font-size:10px;cursor:pointer;">树状</span>
+          <span style="color:#888;font-size:10px;cursor:pointer;">列表</span>
+        </div>
+        <!-- 变更文件列表 -->
+        <div style="padding:4px 0;">
+          <div style="display:flex;align-items:center;padding:5px 10px;border-bottom:1px solid #1f1f30;cursor:pointer;background:#2a2a45;">
+            <span style="color:#98c379;font-size:11px;width:20px;">M</span>
+            <span style="flex:1;color:#ddd;font-size:12px;">src/pages/login.tsx</span>
+            <span style="color:#888;font-size:10px;">+12 -3</span>
+          </div>
+          <div style="display:flex;align-items:center;padding:5px 10px;border-bottom:1px solid #1f1f30;cursor:pointer;">
+            <span style="color:#e5c07b;font-size:11px;width:20px;">A</span>
+            <span style="flex:1;color:#ddd;font-size:12px;">src/utils/validate.ts</span>
+            <span style="color:#888;font-size:10px;">+89 -0</span>
+          </div>
+          <div style="display:flex;align-items:center;padding:5px 10px;border-bottom:1px solid #1f1f30;cursor:pointer;">
+            <span style="color:#98c379;font-size:11px;width:20px;">M</span>
+            <span style="flex:1;color:#ddd;font-size:12px;">src/components/Header.tsx</span>
+            <span style="color:#888;font-size:10px;">+5 -1</span>
+          </div>
+          <div style="display:flex;align-items:center;padding:5px 10px;border-bottom:1px solid #1f1f30;cursor:pointer;">
+            <span style="color:#98c379;font-size:11px;width:20px;">M</span>
+            <span style="flex:1;color:#ddd;font-size:12px;">src/api/user.ts</span>
+            <span style="color:#888;font-size:10px;">+8 -4</span>
+          </div>
+          <div style="display:flex;align-items:center;padding:5px 10px;border-bottom:1px solid #1f1f30;cursor:pointer;">
+            <span style="color:#e06c75;font-size:11px;width:20px;">D</span>
+            <span style="flex:1;color:#ddd;font-size:12px;">src/old/legacy.ts</span>
+            <span style="color:#888;font-size:10px;">-23</span>
+          </div>
+          <div style="display:flex;align-items:center;padding:5px 10px;border-bottom:1px solid #1f1f30;cursor:pointer;">
+            <span style="color:#56b6c2;font-size:11px;width:20px;">🖼️</span>
+            <span style="flex:1;color:#ddd;font-size:12px;">screenshots/login-v2.png</span>
+            <span style="color:#888;font-size:10px;">图片</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Diff 主内容 -->
+      <div style="flex:1;display:flex;flex-direction:column;">
+        <!-- Diff 工具栏 -->
+        <div style="display:flex;align-items:center;padding:4px 12px;border-bottom:1px solid #2a2a40;gap:8px;font-size:11px;background:#1a1a2e;">
+          <span style="color:#888;">Diff:</span>
+          <span style="color:#888;cursor:pointer;">⏮</span>
+          <span style="color:#888;cursor:pointer;">⏪</span>
+          <span style="color:#888;cursor:pointer;">⏩</span>
+          <span style="color:#888;cursor:pointer;">⏭</span>
+          <span style="color:#888;margin-left:8px;">+12 -3</span>
+          <div style="flex:1;"></div>
+          <span style="padding:2px 8px;border-radius:10px;background:#3a3a5e;color:#61afef;font-size:10px;">语法高亮</span>
+          <span style="color:#666;cursor:pointer;">并排</span>
+          <span style="color:#666;cursor:pointer;">换行</span>
+          <span style="color:#666;cursor:pointer;">外部工具</span>
+          <span style="color:#666;cursor:pointer;">📋</span>
+        </div>
+
+        <!-- Text Diff 内容（同前，略以缩略显示） -->
+        <div style="flex:1;overflow:auto;font-family:monospace;font-size:12px;background:#1a1a2e;">
+          <div style="display:flex;background:#1a1a30;padding:2px 12px;color:#666;">
+            <span style="width:40px;text-align:right;margin-right:16px;"></span>
+            <span style="flex:1;">@@ -1,5 +1,14 @@</span>
+          </div>
+          <div style="display:flex;padding:1px 12px;color:#888;">
+            <span style="width:40px;text-align:right;margin-right:16px;color:#555;">1</span>
+            <span style="width:40px;text-align:right;margin-right:16px;color:#555;">1</span>
+            <span style="flex:1;">import React from 'react';</span>
+          </div>
+          <div style="display:flex;padding:1px 12px;background:#3a1a1a;color:#e06c75;">
+            <span style="width:40px;text-align:right;margin-right:16px;color:#555;">3</span>
+            <span style="width:40px;text-align:right;margin-right:16px;color:#555;"></span>
+            <span style="flex:1;">-import { login } from '../api/oldAuth';</span>
+          </div>
+          <div style="display:flex;padding:1px 12px;background:#1a3a1a;color:#98c379;">
+            <span style="width:40px;text-align:right;margin-right:16px;color:#555;"></span>
+            <span style="width:40px;text-align:right;margin-right:16px;color:#555;">3</span>
+            <span style="flex:1;">+import { login } from '../api/auth';</span>
+          </div>
+          <div style="display:flex;padding:1px 12px;background:#1a3a1a;color:#98c379;">
+            <span style="width:40px;text-align:right;margin-right:16px;color:#555;"></span>
+            <span style="width:40px;text-align:right;margin-right:16px;color:#555;">4</span>
+            <span style="flex:1;">+import { validate } from '../utils/validate';</span>
+          </div>
+          <div style="padding:4px 12px;color:#555;font-size:11px;border-top:1px solid #1f1f30;">... 更多变更行 ...</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 底部标签页：不同 Diff 类型切换 -->
+    <div style="display:flex;background:#1e1e30;border-top:1px solid #2a2a40;font-size:11px;">
+      <div style="display:flex;border-bottom:1px solid #2a2a40;">
+        <div style="padding:6px 16px;background:#2a2a45;color:#61afef;border-bottom:2px solid #61afef;cursor:pointer;">文本</div>
+        <div style="padding:6px 16px;color:#888;cursor:pointer;">图片</div>
+        <div style="padding:6px 16px;color:#888;cursor:pointer;">二进制</div>
+        <div style="padding:6px 16px;color:#888;cursor:pointer;">子模块</div>
+      </div>
+      <div style="flex:1;"></div>
+      <div style="padding:6px 16px;color:#666;">132 新增 / 31 删除 / 6 文件</div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>图片 Diff（4 种模式）</h3>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:8px;">
+    <div style="background:#212130;border-radius:6px;padding:12px;">
+      <h4 style="margin:0 0 6px 0;color:#e5c07b;">📐 并排 (SideBySide)</h4>
+      <div style="display:flex;gap:8px;">
+        <div style="flex:1;background:#2a2a40;border-radius:4px;padding:20px 10px;text-align:center;color:#666;">旧图片<br/>800x600</div>
+        <div style="flex:1;background:#2a2a40;border-radius:4px;padding:20px 10px;text-align:center;color:#666;">新图片<br/>800x600</div>
+      </div>
+    </div>
+    <div style="background:#212130;border-radius:6px;padding:12px;">
+      <h4 style="margin:0 0 6px 0;color:#56b6c2;">🔄 滑动 (Swipe)</h4>
+      <div style="background:#2a2a40;border-radius:4px;padding:20px;text-align:center;color:#666;position:relative;overflow:hidden;">
+        <div style="position:absolute;left:0;top:0;bottom:0;width:50%;background:#3a3a5e;"></div>
+        <span style="position:relative;z-index:1;">← 拖动分割线对比 →</span>
+      </div>
+    </div>
+    <div style="background:#212130;border-radius:6px;padding:12px;">
+      <h4 style="margin:0 0 6px 0;color:#c678dd;">🎭 混合 (Blend)</h4>
+      <div style="background:#2a2a40;border-radius:4px;padding:16px;text-align:center;">
+        <input type="range" style="width:100%;" />
+        <div style="color:#666;font-size:11px;margin-top:4px;">滑块控制新旧图片混合比例</div>
+      </div>
+    </div>
+    <div style="background:#212130;border-radius:6px;padding:12px;">
+      <h4 style="margin:0 0 6px 0;color:#d19a66;">🔍 差异 (Difference)</h4>
+      <div style="background:#2a2a40;border-radius:4px;padding:16px;text-align:center;">
+        <input type="range" style="width:100%;" />
+        <div style="color:#666;font-size:11px;margin-top:4px;">滑块控制差异显示程度</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section" style="background:#1e1e30;border-radius:8px;padding:16px;">
+  <h3>多类型 Diff 支持</h3>
+  <div style="display:flex;gap:16px;margin-top:8px;">
+    <div style="flex:1;background:#212130;border-radius:6px;padding:10px;">
+      <h4 style="margin:0 0 4px 0;color:#98c379;">文本 Diff</h4>
+      <p style="color:#888;font-size:11px;margin:0;">语法高亮 (TextMate) / 并排对比 / 换行控制 / 忽略空白 / 行号统计 / 上下文行数调节</p>
+    </div>
+    <div style="flex:1;background:#212130;border-radius:6px;padding:10px;">
+      <h4 style="margin:0 0 4px 0;color:#56b6c2;">图片 Diff</h4>
+      <p style="color:#888;font-size:11px;margin:0;">并排/滑动/混合/差异 4种模式 / LFS 图片支持 / 显示尺寸和文件大小</p>
+    </div>
+    <div style="flex:1;background:#212130;border-radius:6px;padding:10px;">
+      <h4 style="margin:0 0 4px 0;color:#e5c07b;">子模块 Diff</h4>
+      <p style="color:#888;font-size:11px;margin:0;">显示新旧提交 / 未提交变更数 / 一键打开子模块对比</p>
+    </div>
+    <div style="flex:1;background:#212130;border-radius:6px;padding:10px;">
+      <h4 style="margin:0 0 4px 0;color:#e06c75;">二进制 Diff</h4>
+      <p style="color:#888;font-size:11px;margin:0;">显示新旧文件大小 / LFS 指针信息 / 下载原始文件</p>
+    </div>
+  </div>
+</div>

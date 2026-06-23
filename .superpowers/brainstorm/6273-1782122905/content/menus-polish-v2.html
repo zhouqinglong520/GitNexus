@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #0d1117; color: #c9d1d9; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans SC', sans-serif; font-size: 13px; padding: 20px; }
+  h2 { color: #f0f6fc; font-size: 18px; margin-bottom: 4px; }
+  .subtitle { color: #8b949e; font-size: 13px; margin-bottom: 16px; }
+  .section { margin-bottom: 20px; }
+  .mockup { border: 1px solid #30363d; border-radius: 10px; overflow: hidden; }
+  .mockup-header { background: #161b22; padding: 10px 16px; font-size: 12px; color: #8b949e; border-bottom: 1px solid #21262d; font-weight: 600; letter-spacing: 0.5px; }
+  .note { background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 14px 16px; margin-top: 12px; }
+  .note h4 { color: #58a6ff; font-size: 13px; margin-bottom: 6px; }
+  .note p, .note li { color: #8b949e; font-size: 12px; line-height: 1.7; }
+  .note ul { padding-left: 16px; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .tag { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: 500; }
+  .menu-dropdown { background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 4px; box-shadow: 0 8px 24px rgba(0,0,0,0.4); min-width: 200px; }
+  .menu-item { padding: 6px 12px; border-radius: 4px; color: #c9d1d9; font-size: 12px; display: flex; align-items: center; gap: 8px; cursor: pointer; }
+  .menu-item:hover { background: #1f6feb; color: #fff; }
+  .menu-item.danger:hover { background: #6e2c2c; }
+  .menu-sep { height: 1px; background: #21262d; margin: 4px 8px; }
+  .menu-label { padding: 4px 12px; color: #484f58; font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
+  .shortcut { margin-left: auto; color: #484f58; font-size: 11px; font-family: 'SF Mono', monospace; }
+  .menu-item:hover .shortcut { color: rgba(255,255,255,0.7); }
+</style>
+</head>
+<body>
+
+<h2>菜单栏 + 右键菜单 — UI 优化</h2>
+<p class="subtitle">GitHub 风格下拉菜单 + 圆角卡片 + 阴影层次</p>
+
+<div class="grid2">
+  <!-- 文件菜单 -->
+  <div class="section">
+    <div class="mockup-header">文件菜单</div>
+    <div style="padding:12px;display:flex;justify-content:center;">
+      <div class="menu-dropdown">
+        <div class="menu-item">
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M1 3h14M1 8h14M1 13h14"/></svg>
+          新建窗口
+          <span class="shortcut">Ctrl+Shift+N</span>
+        </div>
+        <div class="menu-sep"></div>
+        <div class="menu-item">
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M1 3l7 10 7-10"/></svg>
+          打开仓库...
+          <span class="shortcut">Ctrl+O</span>
+        </div>
+        <div class="menu-item">
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M1 14V2l7 6 7-6v12"/><circle cx="8" cy="8" r="2"/></svg>
+          克隆仓库...
+          <span class="shortcut">Ctrl+Shift+O</span>
+        </div>
+        <div class="menu-item">
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="6"/><line x1="8" y1="5" x2="8" y2="11"/><line x1="5" y1="8" x2="11" y2="8"/></svg>
+          初始化仓库...
+        </div>
+        <div class="menu-sep"></div>
+        <div class="menu-item">
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="2" width="12" height="12" rx="1"/><line x1="2" y1="6" x2="14" y2="6"/></svg>
+          扫描本地仓库
+        </div>
+        <div class="menu-sep"></div>
+        <div class="menu-item">
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 4h12M5 4v8M11 4v8"/></svg>
+          关闭标签页
+          <span class="shortcut">Ctrl+W</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 仓库菜单 -->
+  <div class="section">
+    <div class="mockup-header">仓库菜单</div>
+    <div style="padding:12px;display:flex;justify-content:center;">
+      <div class="menu-dropdown">
+        <div class="menu-item">
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 4h8M4 8h8M4 12h5"/></svg>
+          拉取
+          <span class="shortcut">Ctrl+Shift+F</span>
+        </div>
+        <div class="menu-item">
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 4h8M4 8h8M4 12h5"/></svg>
+          推送
+          <span class="shortcut">Ctrl+Shift+P</span>
+        </div>
+        <div class="menu-item">
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 4h8M4 8h8M4 12h5"/></svg>
+          获取
+          <span class="shortcut">Ctrl+Shift+E</span>
+        </div>
+        <div class="menu-sep"></div>
+        <div class="menu-item">
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="4" r="2"/><line x1="8" y1="6" x2="8" y2="14"/><line x1="6" y1="10" x2="10" y2="10"/></svg>
+          创建分支...
+          <span class="shortcut">Ctrl+Shift+B</span>
+        </div>
+        <div class="menu-item">
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 2l4 12 2-5 5-2z"/></svg>
+          创建标签...
+        </div>
+        <div class="menu-sep"></div>
+        <div class="menu-item">
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M1 1h14v14H1z"/><path d="M5 5h6M5 8h6M5 11h3"/></svg>
+          仓库配置
+        </div>
+        <div class="menu-sep"></div>
+        <div class="menu-label">GitFlow</div>
+        <div class="menu-item">
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 12h4l2-4 2 4h4"/></svg>
+          开始功能分支
+        </div>
+        <div class="menu-item">
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 12h4l2-4 2 4h4"/></svg>
+          开始修复分支
+        </div>
+        <div class="menu-item">
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 12h4l2-4 2 4h4"/></svg>
+          完成当前分支
+        </div>
+        <div class="menu-sep"></div>
+        <div class="menu-item">
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 1v6M8 11v1M8 6a3 3 0 100 6 3 3 0 000-6z"/></svg>
+          Bisect 二分查找
+        </div>
+        <div class="menu-item">
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="6"/><path d="M8 4v8"/></svg>
+          Git GC
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 提交右键菜单 -->
+  <div class="section">
+    <div class="mockup-header">提交右键菜单</div>
+    <div style="padding:12px;display:flex;justify-content:center;">
+      <div class="menu-dropdown" style="min-width:240px;">
+        <div class="menu-item">
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="#3fb950" stroke-width="1.5"><circle cx="8" cy="4" r="2"/><line x1="8" y1="6" x2="8" y2="14"/><line x1="6" y1="10" x2="10" y2="10"/></svg>
+          Cherry-pick 此提交
+        </div>
+        <div class="menu-item">
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="#58a6ff" stroke-width="1.5"><path d="M4 8h8M8 4v8"/><path d="M12 8l-4-4M12 8l-4 4"/></svg>
+          Revert 此提交
+        </div>
+        <div class="menu-item" style="position:relative;">
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="#d29922" stroke-width="1.5"><path d="M8 2v12M4 10l4 4 4-4"/></svg>
+          Reset 到此提交
+          <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="#484f58" stroke-width="2" style="margin-left:auto;"><path d="M6 4l4 4-4 4"/></svg>
+        </div>
+        <div style="padding-left:32px;">
+          <div class="menu-item" style="font-size:11px;color:#8b949e;">Soft（保留工作区+暂存区）</div>
+          <div class="menu-item" style="font-size:11px;color:#8b949e;">Mixed（保留工作区）</div>
+          <div class="menu-item" style="font-size:11px;color:#f85149;">Hard（丢弃所有变更）</div>
+        </div>
+        <div class="menu-sep"></div>
+        <div class="menu-item">
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="4" r="2"/><line x1="8" y1="6" x2="8" y2="14"/><line x1="6" y1="10" x2="10" y2="10"/></svg>
+          在此创建分支...
+        </div>
+        <div class="menu-item">
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="#d29922" stroke-width="1.5"><path d="M2 2l4 12 2-5 5-2z"/></svg>
+          在此创建标签...
+        </div>
+        <div class="menu-sep"></div>
+        <div class="menu-item">
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 4h8M4 8h8M4 12h5"/></svg>
+          与当前分支对比
+        </div>
+        <div class="menu-item">
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="2" width="12" height="12" rx="1"/><line x1="5" y1="2" x2="5" y2="14"/></svg>
+          查看变更文件
+        </div>
+        <div class="menu-sep"></div>
+        <div class="menu-item">
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="10" height="10" rx="1"/><line x1="6" y1="6" x2="10" y2="6"/><line x1="6" y1="8" x2="9" y2="8"/><line x1="6" y1="10" x2="10" y2="10"/></svg>
+          复制 SHA
+          <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="#484f58" stroke-width="2" style="margin-left:auto;"><path d="M6 4l4 4-4 4"/></svg>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 分支右键菜单 -->
+  <div class="section">
+    <div class="mockup-header">分支右键菜单</div>
+    <div style="padding:12px;display:flex;justify-content:center;">
+      <div class="menu-dropdown" style="min-width:240px;">
+        <div class="menu-item">
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="#3fb950" stroke-width="1.5"><polyline points="3 8 7 12 13 4"/></svg>
+          检出分支
+        </div>
+        <div class="menu-item">
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="4" r="2"/><line x1="8" y1="6" x2="8" y2="14"/><line x1="6" y1="10" x2="10" y2="10"/></svg>
+          创建分支（从此分支）
+        </div>
+        <div class="menu-sep"></div>
+        <div class="menu-item">
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="#58a6ff" stroke-width="1.5"><path d="M4 4h8M4 8h8M4 12h5"/></svg>
+          合并到当前分支...
+        </div>
+        <div class="menu-item">
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="#bc8cff" stroke-width="1.5"><path d="M2 12h4l2-4 2 4h4"/></svg>
+          变基到当前分支...
+        </div>
+        <div class="menu-item">
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="#bc8cff" stroke-width="1.5"><path d="M2 12h4l2-4 2 4h4"/></svg>
+          将当前分支变基到此分支...
+        </div>
+        <div class="menu-sep"></div>
+        <div class="menu-item">
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 2v12M4 8h8"/></svg>
+          推送到远程
+        </div>
+        <div class="menu-item">
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 14V2M4 8h8"/></svg>
+          从远程拉取
+        </div>
+        <div class="menu-sep"></div>
+        <div class="menu-item">
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 2H5a2 2 0 00-2 2v8a2 2 0 002 2h4"/></svg>
+          重命名
+        </div>
+        <div class="menu-item danger">
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="#f85149" stroke-width="1.5"><path d="M4 4l8 8M12 4l-8 8"/></svg>
+          删除分支
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="note">
+  <h4>菜单 UI 优化要点</h4>
+  <ul>
+    <li><strong>圆角卡片样式</strong> — 8px 圆角 + 阴影（0 8px 24px rgba(0,0,0,0.4)），悬浮感更强</li>
+    <li><strong>SVG 图标</strong> — 每个菜单项左侧使用语义化 SVG 图标，替代 Emoji</li>
+    <li><strong>Hover 高亮</strong> — 蓝色高亮（#1f6feb），危险操作红色高亮（#6e2c2c）</li>
+    <li><strong>快捷键提示</strong> — 右侧灰色等宽字体显示快捷键</li>
+    <li><strong>子菜单箭头</strong> — 含子菜单项右侧显示 > 箭头</li>
+    <li><strong>分组标签</strong> — GitFlow 等子菜单使用灰色大写标签分组</li>
+    <li><strong>危险操作样式</strong> — 删除/强制操作使用红色图标 + hover 红色背景</li>
+    <li><strong>分隔线</strong> — 使用 #21262d 色细线，左右留 8px 边距</li>
+  </ul>
+</div>
+
+</body>
+</html>
