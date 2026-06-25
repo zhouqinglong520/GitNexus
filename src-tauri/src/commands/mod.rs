@@ -333,8 +333,8 @@ pub fn git_list_stash(path: String) -> Result<Vec<Stash>, String> {
 }
 
 #[tauri::command]
-pub fn git_push_stash(path: String, message: Option<String>, keep_index: bool) -> Result<(), String> {
-    git::stash::push_stash(&path, message.as_deref(), keep_index).map_err(|e| e.to_string())
+pub fn git_push_stash(path: String, message: Option<String>, keep_index: bool, include_untracked: bool) -> Result<(), String> {
+    git::stash::push_stash(&path, message.as_deref(), keep_index, include_untracked).map_err(|e| e.to_string())
 }
 
 #[tauri::command]

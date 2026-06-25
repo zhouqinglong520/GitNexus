@@ -142,8 +142,14 @@ pub fn execute_custom_action(
     }
 
     // Execute the command
-    let mut cmd = StdCommand::new("sh");
-    cmd.arg("-c")
+    let (shell, shell_flag) = if cfg!(target_os = "windows") {
+        ("cmd", "/C")
+    } else {
+        ("sh", "-c")
+    };
+
+    let mut cmd = StdCommand::new(shell);
+    cmd.arg(shell_flag)
         .arg(&final_command)
         .current_dir(&work_dir)
         .stdout(Stdio::piped())

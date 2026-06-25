@@ -51,12 +51,15 @@ pub fn list_stash(path: &str) -> Result<Vec<Stash>, GitError> {
 }
 
 /// Push (create) a new stash entry.
-pub fn push_stash(path: &str, message: Option<&str>, keep_index: bool) -> Result<(), GitError> {
+pub fn push_stash(path: &str, message: Option<&str>, keep_index: bool, include_untracked: bool) -> Result<(), GitError> {
     let git = GitCommand::new(path);
 
     let mut args: Vec<&str> = vec!["stash", "push"];
     if keep_index {
         args.push("--keep-index");
+    }
+    if include_untracked {
+        args.push("--include-untracked");
     }
     if let Some(m) = message {
         args.push("-m");

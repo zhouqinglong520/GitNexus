@@ -544,12 +544,11 @@ export const useGitStore = create<GitStore>((set, get) => ({
 
   stash: async (params: StashParams) => {
     const path = requirePath(get());
-    // TODO: pass include_untracked once backend git_push_stash supports it
     await invoke('git_push_stash', {
       path,
       message: params.message || null,
       keepIndex: params.keep_index,
-      // includeUntracked: params.include_untracked,
+      includeUntracked: params.include_untracked,
     });
     await get().fetchStashes();
     await get().fetchStatus();
