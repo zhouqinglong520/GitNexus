@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { invoke } from '@tauri-apps/api/core';
 import { useGitStore } from '@/stores/git-store';
 import { useUIStore } from '@/stores/ui-store';
@@ -7,7 +8,7 @@ import { useTranslation } from '@/i18n';
 import { CommitGraph } from '@/components/CommitGraph';
 import { DiffView } from '@/components/DiffView';
 import { InteractiveRebase } from '@/components/InteractiveRebase';
-import { GitCommit, User, Clock, Copy, Check, Archive, ChevronDown, ChevronUp } from 'lucide-react';
+import { GitCommit, User, Clock, Copy, Check, Archive, ChevronDown, ChevronUp, RotateCcw, Edit3, GitCompare } from 'lucide-react';
 import type { Commit, CommitDetail, ContextMenuItem } from '@/types';
 import { formatRelativeTime } from '@/utils/format';
 import { parseDiff } from '@/utils/diff-parser';
@@ -23,6 +24,7 @@ function parseRefs(refsStr: string): { name: string; kind: string }[] {
 }
 
 export const Histories: React.FC = () => {
+  const navigate = useNavigate();
   const commits = useGitStore((s) => s.commits);
   const loading = useGitStore((s) => s.loading.commits);
   const selectedCommitId = useGitStore((s) => s.selectedCommitId);
@@ -40,6 +42,8 @@ export const Histories: React.FC = () => {
   const createBranch = useGitStore((s) => s.createBranch);
   const createTag = useGitStore((s) => s.createTag);
   const createArchive = useGitStore((s) => s.createArchive);
+  const reset = useGitStore((s) => s.reset);
+  const commitAction = useGitStore((s) => s.commit);
   const showContextMenu = useUIStore((s) => s.showContextMenu);
   const addNotification = useUIStore((s) => s.addNotification);
   const showDialog = useUIStore((s) => s.showDialog);
@@ -80,6 +84,11 @@ export const Histories: React.FC = () => {
       target.isContentEditable
     );
   }, []);
+
+  // Pre-parse refs for all commits to avoid repeated JSON.parse in render loop
+  const parsedCommits = useMemo(() => {
+    return commits.map(c => ({ ...c, parsedRefs: parseRefs(c.refs) }));
+  }, [commits]);
 
   const parsedDiffFiles = useMemo(() => {
     if (!diff) return [];
@@ -287,6 +296,116 @@ export const Histories: React.FC = () => {
             setArchiveDialogOpen(true);
           },
         },
+        { id: 'sep4', label: '', separator: true },
+        {
+          id: 'reset-to-commit',
+          label: t('histories.resetToCommit'),
+          icon: <RotateCcw size={12} />,
+          children: [
+            {
+              id: 'reset-soft',
+              label: t('histories.resetSoft'),
+              action: () => {
+                showDialog({
+                  type: 'confirm',
+                  title: t('histories.resetSoft'),
+                  message: t('histories.resetConfirmMessage', commit.sha.slice(0, 7)),
+                  confirmLabel: t('common.confirm'),
+                  cancelLabel: t('common.cancel'),
+                  onConfirm: () => {
+                    reset({ commit: commit.sha, mode: 'soft' }).catch((err) => {
+                      addNotification({ type: 'error', title: t('histories.resetFailed'), message: String(err) });
+                    });
+                  },
+                });
+              },
+            },
+            {
+              id: 'reset-mixed',
+              label: t('histories.resetMixed'),
+              action: () => {
+                showDialog({
+                  type: 'confirm',
+                  title: t('histories.resetMixed'),
+                  message: t('histories.resetConfirmMessage', commit.sha.slice(0, 7)),
+                  confirmLabel: t('common.confirm'),
+                  cancelLabel: t('common.cancel'),
+                  onConfirm: () => {
+                    reset({ commit: commit.sha, mode: 'mixed' }).catch((err) => {
+                      addNotification({ type: 'error', title: t('histories.resetFailed'), message: String(err) });
+                    });
+                  },
+                });
+              },
+            },
+            {
+              id: 'reset-hard',
+              label: t('histories.resetHard'),
+              action: () => {
+                showDialog({
+                  type: 'confirm',
+                  title: t('histories.resetHard'),
+                  message: t('histories.resetHardConfirmMessage', commit.sha.slice(0, 7)),
+                  confirmLabel: t('common.confirm'),
+                  cancelLabel: t('common.cancel'),
+                  onConfirm: () => {
+                    reset({ commit: commit.sha, mode: 'hard' }).catch((err) => {
+                      addNotification({ type: 'error', title: t('histories.resetFailed'), message: String(err) });
+                    });
+                  },
+                });
+              },
+            },
+          ],
+        },
+        {
+          id: 'squash',
+          label: t('histories.squash'),
+          action: () => {
+            showDialog({
+              type: 'confirm',
+              title: t('histories.squash'),
+              message: t('histories.squashConfirmMessage', commit.sha.slice(0, 7)),
+              confirmLabel: t('common.confirm'),
+              cancelLabel: t('common.cancel'),
+              onConfirm: () => {
+                reset({ commit: commit.sha, mode: 'soft' }).catch((err) => {
+                  addNotification({ type: 'error', title: t('histories.squashFailed'), message: String(err) });
+                });
+              },
+            });
+          },
+        },
+        {
+          id: 'edit-commit-message',
+          label: t('histories.editCommitMessage'),
+          icon: <Edit3 size={12} />,
+          disabled: commit.sha !== commits[0]?.sha,
+          action: () => {
+            if (commit.sha !== commits[0]?.sha) return;
+            showDialog({
+              type: 'confirm',
+              title: t('histories.editCommitMessage'),
+              message: t('histories.editCommitMessageDesc'),
+              confirmLabel: t('common.confirm'),
+              cancelLabel: t('common.cancel'),
+              onConfirm: () => {
+                commitAction({ message: '', amend: true }).catch((err) => {
+                  addNotification({ type: 'error', title: t('histories.editCommitMessageFailed'), message: String(err) });
+                });
+              },
+            });
+          },
+        },
+        {
+          id: 'compare-with-head',
+          label: t('histories.compareWithHead'),
+          icon: <GitCompare size={12} />,
+          action: () => {
+            fetchDiff({ commit1: commit.sha, commit2: 'HEAD' });
+            navigate('/compare');
+          },
+        },
       ];
 
       // Add interactive rebase option when multiple commits are selected
@@ -311,7 +430,7 @@ export const Histories: React.FC = () => {
 
       showContextMenu(e.clientX, e.clientY, items);
     },
-    [showContextMenu, addNotification, checkout, cherryPick, revert, createBranch, createTag, archiveFormat, selectedCommits, commits, handleOpenInteractiveRebase]
+    [showContextMenu, addNotification, showDialog, checkout, cherryPick, revert, createBranch, createTag, archiveFormat, selectedCommits, commits, handleOpenInteractiveRebase, reset, commitAction, navigate, fetchDiff]
   );
 
   const handleExportArchive = useCallback(async () => {
@@ -407,10 +526,10 @@ export const Histories: React.FC = () => {
                 {t('histories.noCommits')}
               </div>
             ) : (
-              commits.map((commit) => {
+              parsedCommits.map((commit) => {
                 const isSelected = commit.sha === selectedCommitId;
                 const isMultiSelected = selectedCommits.has(commit.sha);
-                const refs = parseRefs(commit.refs);
+                const refs = commit.parsedRefs;
                 const isPreview = previewCommit === commit.sha;
                 return (
                   <div key={commit.sha}>

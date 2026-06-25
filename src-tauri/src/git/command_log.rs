@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 use std::collections::VecDeque;
-use std::sync::Mutex;
+use std::sync::RwLock;
 
 /// Maximum number of log entries to retain.
 const MAX_LOG_ENTRIES: usize = 1000;
@@ -23,9 +23,9 @@ pub struct CommandLogEntry {
     pub error: String,
 }
 
-/// Global command log storage.
-static COMMAND_LOGS: once_cell::sync::Lazy<Mutex<CommandLogStorage>> =
-    once_cell::sync::Lazy::new(|| Mutex::new(CommandLogStorage::new()));
+/// Global command log storage, using RwLock for better read concurrency.
+static COMMAND_LOGS: once_cell::sync::Lazy<RwLock<CommandLogStorage>> =
+    once_cell::sync::Lazy::new(|| RwLock::new(CommandLogStorage::new()));
 
 /// Internal storage wrapping a VecDeque with an auto-incrementing ID counter.
 struct CommandLogStorage {
@@ -77,25 +77,25 @@ fn truncate_str(s: &str, max_len: usize) -> String {
 
 /// Record a command execution in the global log.
 pub fn log_command(entry: CommandLogEntry) {
-    let mut logs = COMMAND_LOGS.lock().unwrap();
+    let mut logs = COMMAND_LOGS.write().unwrap();
     logs.push(entry);
 }
 
 /// Retrieve log entries with pagination.
 pub fn get_logs(limit: u32, offset: u32) -> Vec<CommandLogEntry> {
-    let logs = COMMAND_LOGS.lock().unwrap();
+    let logs = COMMAND_LOGS.read().unwrap();
     logs.get(limit, offset)
 }
 
 /// Clear all command log entries.
 pub fn clear_logs() {
-    let mut logs = COMMAND_LOGS.lock().unwrap();
+    let mut logs = COMMAND_LOGS.write().unwrap();
     logs.clear();
 }
 
 /// Get the total number of log entries.
 pub fn get_log_count() -> usize {
-    let logs = COMMAND_LOGS.lock().unwrap();
+    let logs = COMMAND_LOGS.read().unwrap();
     logs.count()
 }
 
@@ -112,7 +112,7 @@ pub fn create_log_entry(
     error: &str,
 ) -> CommandLogEntry {
     let id = {
-        let mut logs = COMMAND_LOGS.lock().unwrap();
+        let mut logs = COMMAND_LOGS.write().unwrap();
         let id = logs.next_id;
         logs.next_id += 1;
         id

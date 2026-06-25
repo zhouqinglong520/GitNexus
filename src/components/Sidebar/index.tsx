@@ -18,12 +18,17 @@ import {
   Loader2,
   RefreshCw,
   GitCompare,
+  GitPullRequest,
+  Upload,
+  Download,
+  Edit3,
+  Scissors,
 } from 'lucide-react';
 import { useRepositoryStore } from '@/stores/repository-store';
 import { useGitStore } from '@/stores/git-store';
 import { useUIStore } from '@/stores/ui-store';
 import { useTranslation } from '@/i18n';
-import type { TabType } from '@/types';
+import type { TabType, Branch, Tag as TagType, Remote, ContextMenuItem } from '@/types';
 
 interface SidebarProps {
   className?: string;
@@ -55,6 +60,31 @@ export const Sidebar: React.FC<SidebarProps> = ({ className = '' }) => {
   const addWorktree = useGitStore((s) => s.addWorktree);
   const removeWorktree = useGitStore((s) => s.removeWorktree);
   const pruneWorktrees = useGitStore((s) => s.pruneWorktrees);
+
+  // Branch operations
+  const checkoutBranch = useGitStore((s) => s.checkout);
+  const createBranch = useGitStore((s) => s.createBranch);
+  const mergeBranch = useGitStore((s) => s.merge);
+  const rebaseBranch = useGitStore((s) => s.rebase);
+  const pushBranch = useGitStore((s) => s.push);
+  const pullBranch = useGitStore((s) => s.pull);
+  const fetchRemote = useGitStore((s) => s.fetchRemote);
+  const setUpstream = useGitStore((s) => s.setUpstream);
+  const renameBranch = useGitStore((s) => s.renameBranch);
+  const deleteBranch = useGitStore((s) => s.deleteBranch);
+
+  // Tag operations
+  const pushTag = useGitStore((s) => s.pushTag);
+  const deleteTag = useGitStore((s) => s.deleteTag);
+  const deleteRemoteTag = useGitStore((s) => s.deleteRemoteTag);
+
+  // Remote operations
+  const removeRemote = useGitStore((s) => s.removeRemote);
+  const pruneRemote = useGitStore((s) => s.pruneRemote);
+  const editRemote = useGitStore((s) => s.editRemote);
+
+  const showContextMenu = useUIStore((s) => s.showContextMenu);
+  const showDialog = useUIStore((s) => s.showDialog);
 
   const [activeSection, setActiveSection] = useState<string>('branches');
 
@@ -115,6 +145,360 @@ export const Sidebar: React.FC<SidebarProps> = ({ className = '' }) => {
       addNotification({ type: 'error', title: 'Failed to prune worktrees', message: String(err) });
     }
   }, [pruneWorktrees, addNotification]);
+
+  // ---- Branch context menu ----
+  const handleBranchContextMenu = useCallback(
+    (e: React.MouseEvent, branch: Branch) => {
+      e.preventDefault();
+      const items: ContextMenuItem[] = [];
+
+      if (branch.is_remote) {
+        // Remote branch context menu
+        const remoteName = branch.name.split('/')[0];
+        const branchName = branch.name.substring(branch.name.indexOf('/') + 1);
+        items.push(
+          {
+            id: 'checkout-local',
+            label: t('sidebar.checkoutAsLocal'),
+            action: () => {
+              checkoutBranch({ branch: branch.name, create: true, force: false }).catch((err) => {
+                addNotification({ type: 'error', title: t('sidebar.checkoutFailed'), message: String(err) });
+              });
+            },
+          },
+          {
+            id: 'fetch',
+            label: t('sidebar.fetch'),
+            icon: <Download size={12} />,
+            action: () => {
+              fetchRemote({ remote: remoteName, prune: false }).catch((err) => {
+                addNotification({ type: 'error', title: t('sidebar.fetchFailed'), message: String(err) });
+              });
+            },
+          },
+          {
+            id: 'set-upstream',
+            label: t('sidebar.setUpstream'),
+            action: () => {
+              const currentBranch = useGitStore.getState().status?.branch;
+              if (currentBranch) {
+                setUpstream(currentBranch, branch.name).catch((err) => {
+                  addNotification({ type: 'error', title: t('sidebar.setUpstreamFailed'), message: String(err) });
+                });
+              } else {
+                addNotification({ type: 'warning', title: t('sidebar.noCurrentBranch') });
+              }
+            },
+          },
+          {
+            id: 'merge',
+            label: t('sidebar.mergeToCurrent'),
+            icon: <GitPullRequest size={12} />,
+            action: () => {
+              mergeBranch({ branch: branch.name, message: `Merge ${branch.name}`, ff: 'no-fast-forward' }).catch((err) => {
+                addNotification({ type: 'error', title: t('sidebar.mergeFailed'), message: String(err) });
+              });
+            },
+          },
+          { id: 'sep', label: '', separator: true },
+          {
+            id: 'delete-remote-branch',
+            label: t('sidebar.deleteRemoteBranch'),
+            icon: <Trash2 size={12} />,
+            action: () => {
+              showDialog({
+                type: 'confirm',
+                title: t('sidebar.deleteRemoteBranch'),
+                message: t('sidebar.deleteRemoteBranchConfirm', branch.name),
+                confirmLabel: t('common.confirm'),
+                cancelLabel: t('common.cancel'),
+                onConfirm: () => {
+                  pushBranch({ remote: remoteName, branch: branchName, force: true, upstream: false }).catch((err) => {
+                    addNotification({ type: 'error', title: t('sidebar.deleteRemoteBranchFailed'), message: String(err) });
+                  });
+                },
+              });
+            },
+          }
+        );
+      } else {
+        // Local branch context menu
+        items.push(
+          {
+            id: 'checkout',
+            label: t('sidebar.checkout'),
+            action: () => {
+              checkoutBranch({ branch: branch.name, create: false, force: false }).catch((err) => {
+                addNotification({ type: 'error', title: t('sidebar.checkoutFailed'), message: String(err) });
+              });
+            },
+            disabled: branch.is_current,
+          },
+          {
+            id: 'create-branch',
+            label: t('sidebar.createBranchFrom'),
+            action: () => {
+              createBranch({ name: '', ref: branch.name }).catch((err) => {
+                addNotification({ type: 'error', title: t('sidebar.createBranchFailed'), message: String(err) });
+              });
+            },
+          },
+          { id: 'sep1', label: '', separator: true },
+          {
+            id: 'merge',
+            label: t('sidebar.mergeToCurrent'),
+            icon: <GitPullRequest size={12} />,
+            action: () => {
+              mergeBranch({ branch: branch.name, message: `Merge ${branch.name}`, ff: 'no-fast-forward' }).catch((err) => {
+                addNotification({ type: 'error', title: t('sidebar.mergeFailed'), message: String(err) });
+              });
+            },
+            disabled: branch.is_current,
+          },
+          {
+            id: 'rebase',
+            label: t('sidebar.rebaseToBranch'),
+            icon: <Scissors size={12} />,
+            action: () => {
+              rebaseBranch(branch.name).catch((err) => {
+                addNotification({ type: 'error', title: t('sidebar.rebaseFailed'), message: String(err) });
+              });
+            },
+            disabled: branch.is_current,
+          },
+          { id: 'sep2', label: '', separator: true },
+          {
+            id: 'push',
+            label: t('sidebar.push'),
+            icon: <Upload size={12} />,
+            action: () => {
+              pushBranch({ remote: '', branch: branch.name, force: false, upstream: !branch.upstream }).catch((err) => {
+                addNotification({ type: 'error', title: t('sidebar.pushFailed'), message: String(err) });
+              });
+            },
+          },
+          {
+            id: 'pull',
+            label: t('sidebar.pull'),
+            icon: <Download size={12} />,
+            action: () => {
+              pullBranch({ remote: '', branch: branch.name, rebase: false }).catch((err) => {
+                addNotification({ type: 'error', title: t('sidebar.pullFailed'), message: String(err) });
+              });
+            },
+          },
+          {
+            id: 'set-upstream',
+            label: t('sidebar.setUpstream'),
+            action: () => {
+              const remoteBranch = branch.upstream ?? `origin/${branch.name}`;
+              setUpstream(branch.name, remoteBranch).catch((err) => {
+                addNotification({ type: 'error', title: t('sidebar.setUpstreamFailed'), message: String(err) });
+              });
+            },
+          },
+          { id: 'sep3', label: '', separator: true },
+          {
+            id: 'rename',
+            label: t('sidebar.renameBranch'),
+            icon: <Edit3 size={12} />,
+            action: () => {
+              showDialog({
+                type: 'confirm',
+                title: t('sidebar.renameBranch'),
+                message: t('sidebar.renameBranchDesc', branch.name),
+                confirmLabel: t('common.confirm'),
+                cancelLabel: t('common.cancel'),
+                onConfirm: () => {
+                  // For simplicity, open a prompt-style dialog; in production, use a custom input dialog
+                  const newName = window.prompt(t('sidebar.enterNewBranchName'), branch.name);
+                  if (newName && newName !== branch.name) {
+                    renameBranch(branch.name, newName).catch((err) => {
+                      addNotification({ type: 'error', title: t('sidebar.renameBranchFailed'), message: String(err) });
+                    });
+                  }
+                },
+              });
+            },
+          },
+          {
+            id: 'delete',
+            label: t('sidebar.deleteBranch'),
+            icon: <Trash2 size={12} />,
+            action: () => {
+              showDialog({
+                type: 'confirm',
+                title: t('sidebar.deleteBranch'),
+                message: t('sidebar.deleteBranchConfirm', branch.name),
+                confirmLabel: t('common.confirm'),
+                cancelLabel: t('common.cancel'),
+                onConfirm: () => {
+                  deleteBranch({ name: branch.name, force: false }).catch((err) => {
+                    addNotification({ type: 'error', title: t('sidebar.deleteBranchFailed'), message: String(err) });
+                  });
+                },
+              });
+            },
+            disabled: branch.is_current,
+          },
+          {
+            id: 'force-delete',
+            label: t('sidebar.forceDeleteBranch'),
+            action: () => {
+              showDialog({
+                type: 'confirm',
+                title: t('sidebar.forceDeleteBranch'),
+                message: t('sidebar.forceDeleteBranchConfirm', branch.name),
+                confirmLabel: t('common.confirm'),
+                cancelLabel: t('common.cancel'),
+                onConfirm: () => {
+                  deleteBranch({ name: branch.name, force: true }).catch((err) => {
+                    addNotification({ type: 'error', title: t('sidebar.deleteBranchFailed'), message: String(err) });
+                  });
+                },
+              });
+            },
+            disabled: branch.is_current,
+          }
+        );
+      }
+
+      showContextMenu(e.clientX, e.clientY, items);
+    },
+    [showContextMenu, addNotification, showDialog, t, checkoutBranch, createBranch, mergeBranch, rebaseBranch, pushBranch, pullBranch, fetchRemote, setUpstream, renameBranch, deleteBranch]
+  );
+
+  // ---- Tag context menu ----
+  const handleTagContextMenu = useCallback(
+    (e: React.MouseEvent, tag: TagType) => {
+      e.preventDefault();
+      const items: ContextMenuItem[] = [
+        {
+          id: 'checkout',
+          label: t('sidebar.checkout'),
+          action: () => {
+            checkoutBranch({ branch: tag.name, create: false, force: false }).catch((err) => {
+              addNotification({ type: 'error', title: t('sidebar.checkoutFailed'), message: String(err) });
+            });
+          },
+        },
+        {
+          id: 'push-tag',
+          label: t('sidebar.pushTag'),
+          icon: <Upload size={12} />,
+          action: () => {
+            pushTag(tag.name, 'origin').catch((err) => {
+              addNotification({ type: 'error', title: t('sidebar.pushTagFailed'), message: String(err) });
+            });
+          },
+        },
+        { id: 'sep1', label: '', separator: true },
+        {
+          id: 'delete-tag-local',
+          label: t('sidebar.deleteTagLocal'),
+          icon: <Trash2 size={12} />,
+          action: () => {
+            showDialog({
+              type: 'confirm',
+              title: t('sidebar.deleteTagLocal'),
+              message: t('sidebar.deleteTagConfirm', tag.name),
+              confirmLabel: t('common.confirm'),
+              cancelLabel: t('common.cancel'),
+              onConfirm: () => {
+                deleteTag({ name: tag.name }).catch((err) => {
+                  addNotification({ type: 'error', title: t('sidebar.deleteTagFailed'), message: String(err) });
+                });
+              },
+            });
+          },
+        },
+        {
+          id: 'delete-tag-remote',
+          label: t('sidebar.deleteTagRemote'),
+          action: () => {
+            showDialog({
+              type: 'confirm',
+              title: t('sidebar.deleteTagRemote'),
+              message: t('sidebar.deleteRemoteTagConfirm', tag.name),
+              confirmLabel: t('common.confirm'),
+              cancelLabel: t('common.cancel'),
+              onConfirm: () => {
+                deleteRemoteTag(tag.name, 'origin').catch((err) => {
+                  addNotification({ type: 'error', title: t('sidebar.deleteRemoteTagFailed'), message: String(err) });
+                });
+              },
+            });
+          },
+        },
+      ];
+      showContextMenu(e.clientX, e.clientY, items);
+    },
+    [showContextMenu, addNotification, showDialog, t, checkoutBranch, pushTag, deleteTag, deleteRemoteTag]
+  );
+
+  // ---- Remote context menu ----
+  const handleRemoteContextMenu = useCallback(
+    (e: React.MouseEvent, remote: Remote) => {
+      e.preventDefault();
+      const items: ContextMenuItem[] = [
+        {
+          id: 'fetch',
+          label: t('sidebar.fetch'),
+          icon: <Download size={12} />,
+          action: () => {
+            fetchRemote({ remote: remote.name, prune: false }).catch((err) => {
+              addNotification({ type: 'error', title: t('sidebar.fetchFailed'), message: String(err) });
+            });
+          },
+        },
+        {
+          id: 'prune',
+          label: t('sidebar.pruneRemote'),
+          icon: <RefreshCw size={12} />,
+          action: () => {
+            pruneRemote(remote.name).catch((err) => {
+              addNotification({ type: 'error', title: t('sidebar.pruneRemoteFailed'), message: String(err) });
+            });
+          },
+        },
+        { id: 'sep1', label: '', separator: true },
+        {
+          id: 'edit-url',
+          label: t('sidebar.editRemoteUrl'),
+          icon: <Edit3 size={12} />,
+          action: () => {
+            const newUrl = window.prompt(t('sidebar.enterNewRemoteUrl'), remote.url);
+            if (newUrl && newUrl !== remote.url) {
+              editRemote(remote.name, newUrl).catch((err) => {
+                addNotification({ type: 'error', title: t('sidebar.editRemoteUrlFailed'), message: String(err) });
+              });
+            }
+          },
+        },
+        {
+          id: 'delete-remote',
+          label: t('sidebar.deleteRemote'),
+          icon: <Trash2 size={12} />,
+          action: () => {
+            showDialog({
+              type: 'confirm',
+              title: t('sidebar.deleteRemote'),
+              message: t('sidebar.deleteRemoteConfirm', remote.name),
+              confirmLabel: t('common.confirm'),
+              cancelLabel: t('common.cancel'),
+              onConfirm: () => {
+                removeRemote({ name: remote.name }).catch((err) => {
+                  addNotification({ type: 'error', title: t('sidebar.deleteRemoteFailed'), message: String(err) });
+                });
+              },
+            });
+          },
+        },
+      ];
+      showContextMenu(e.clientX, e.clientY, items);
+    },
+    [showContextMenu, addNotification, showDialog, t, fetchRemote, pruneRemote, editRemote, removeRemote]
+  );
 
   if (!sidebarOpen) {
     return (
@@ -246,6 +630,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ className = '' }) => {
                   color: branch.is_current ? 'var(--accent-green)' : 'var(--text-primary)',
                   backgroundColor: branch.is_current ? 'rgba(166, 227, 161, 0.08)' : 'transparent',
                 }}
+                onContextMenu={(e) => handleBranchContextMenu(e, branch)}
               >
                 <GitBranch size={12} />
                 <span className="truncate flex-1 text-left">{branch.name}</span>
@@ -269,6 +654,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ className = '' }) => {
                 key={tag.name}
                 className="w-full flex items-center gap-2 px-2 py-1 text-xs rounded transition-colors hover:bg-overlay"
                 style={{ color: 'var(--accent-mauve)' }}
+                onContextMenu={(e) => handleTagContextMenu(e, tag)}
               >
                 <Tag size={12} />
                 <span className="truncate flex-1 text-left">{tag.name}</span>
@@ -284,6 +670,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ className = '' }) => {
                 key={remote.name}
                 className="flex items-center gap-2 px-2 py-1 text-xs"
                 style={{ color: 'var(--accent-peach)' }}
+                onContextMenu={(e) => handleRemoteContextMenu(e, remote)}
               >
                 <FolderGit2 size={12} />
                 <span className="font-medium">{remote.name}</span>

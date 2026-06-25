@@ -158,6 +158,7 @@ export interface BlameLine {
   author_time: number;
   line_number: number;
   content: string;
+  commit_message: string;
 }
 
 /** Blame result for a file (frontend wrapper around Vec<BlameLine>) */
@@ -211,6 +212,8 @@ export interface RepositoryStats {
   total_worktrees: number;
   first_commit_time: number | null;
   last_commit_time: number | null;
+  total_insertions: number;
+  total_deletions: number;
 }
 
 // ============================================================
@@ -544,6 +547,8 @@ export interface DiffParams {
   staged?: boolean;
   commit1?: string;
   commit2?: string;
+  ignoreWhitespace?: boolean;
+  contextLines?: number;
 }
 
 export interface BlameParams {

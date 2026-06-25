@@ -10,7 +10,11 @@ import {
   HardDrive,
   Loader2,
   RefreshCw,
+  TrendingUp,
+  TrendingDown,
 } from 'lucide-react';
+
+type TimeDimension = 'all' | 'month' | 'week';
 
 /** Simple CSS bar chart component */
 const BarChart: React.FC<{
@@ -89,15 +93,65 @@ export const Statistics: React.FC = () => {
   const loading = useGitStore((s) => s.loading.statistics);
   const error = useGitStore((s) => s.errors.statistics);
   const fetchStatistics = useGitStore((s) => s.fetchStatistics);
+  const fetchCommits = useGitStore((s) => s.fetchCommits);
 
+  const [timeDimension, setTimeDimension] = useState<TimeDimension>('all');
+  const [selectedAuthor, setSelectedAuthor] = useState<string | null>(null);
+
+  // Compute since date based on time dimension
+  const sinceDate = useMemo(() => {
+    if (timeDimension === 'all') return undefined;
+    const now = new Date();
+    if (timeDimension === 'month') {
+      const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
+      return firstDay.toISOString().split('T')[0];
+    }
+    if (timeDimension === 'week') {
+      const dayOfWeek = now.getDay() || 7;
+      const monday = new Date(now);
+      monday.setDate(now.getDate() - dayOfWeek + 1);
+      monday.setHours(0, 0, 0, 0);
+      return monday.toISOString().split('T')[0];
+    }
+    return undefined;
+  }, [timeDimension]);
+
+  // Fetch statistics when time dimension changes
   useEffect(() => {
-    fetchStatistics();
-  }, [fetchStatistics]);
+    fetchStatistics(sinceDate);
+    // Also fetch commits for author stats
+    fetchCommits();
+  }, [fetchStatistics, fetchCommits, sinceDate]);
 
-  // Group commits by author for the bar chart
+  // Get unique authors from commits
+  const allAuthors = useMemo(() => {
+    const authorSet = new Set<string>();
+    for (const commit of commits) {
+      authorSet.add(commit.author_name);
+    }
+    return Array.from(authorSet).sort();
+  }, [commits]);
+
+  // Filter commits by selected author and time dimension
+  const filteredCommits = useMemo(() => {
+    let filtered = commits;
+    if (selectedAuthor) {
+      filtered = filtered.filter((c) => c.author_name === selectedAuthor);
+    }
+    if (timeDimension !== 'all' && sinceDate) {
+      const since = new Date(sinceDate).getTime() / 1000;
+      filtered = filtered.filter((c) => {
+        const commitTime = c.author_time ?? 0;
+        return commitTime >= since;
+      });
+    }
+    return filtered;
+  }, [commits, selectedAuthor, timeDimension, sinceDate]);
+
+  // Group filtered commits by author for the bar chart
   const authorStats = useMemo(() => {
     const authorMap = new Map<string, number>();
-    for (const commit of commits) {
+    for (const commit of filteredCommits) {
       const count = authorMap.get(commit.author_name) ?? 0;
       authorMap.set(commit.author_name, count + 1);
     }
@@ -128,7 +182,19 @@ export const Statistics: React.FC = () => {
       ...entry,
       color: colors[idx % colors.length],
     }));
-  }, [commits]);
+  }, [filteredCommits]);
+
+  // Compute line changes for filtered commits (from shortstat)
+  const lineChanges = useMemo(() => {
+    if (timeDimension !== 'all' && !sinceDate) {
+      return { insertions: 0, deletions: 0 };
+    }
+    // Use statistics data for line changes (backend handles time filtering)
+    return {
+      insertions: statistics?.total_insertions ?? 0,
+      deletions: statistics?.total_deletions ?? 0,
+    };
+  }, [statistics, timeDimension, sinceDate]);
 
   if (loading) {
     return (
@@ -174,14 +240,36 @@ export const Statistics: React.FC = () => {
             Repository Statistics
           </span>
         </div>
-        <button
-          onClick={() => fetchStatistics()}
-          className="p-1.5 rounded transition-colors hover:bg-overlay"
-          style={{ color: 'var(--text-subtle)' }}
-          title="Refresh statistics"
-        >
-          <RefreshCw size={14} />
-        </button>
+        <div className="flex items-center gap-2">
+          {/* Time dimension toggle */}
+          <div className="flex items-center gap-1">
+            {(['all', 'month', 'week'] as TimeDimension[]).map((dim) => (
+              <button
+                key={dim}
+                onClick={() => {
+                  setTimeDimension(dim);
+                  setSelectedAuthor(null);
+                }}
+                className="px-2 py-0.5 rounded text-xs transition-colors"
+                style={{
+                  backgroundColor: timeDimension === dim ? 'var(--accent-blue)' : 'var(--bg-overlay)',
+                  color: timeDimension === dim ? 'var(--bg-base)' : 'var(--text-secondary)',
+                  border: '1px solid var(--border-color)',
+                }}
+              >
+                {dim === 'all' ? 'All' : dim === 'month' ? 'This Month' : 'This Week'}
+              </button>
+            ))}
+          </div>
+          <button
+            onClick={() => fetchStatistics(sinceDate)}
+            className="p-1.5 rounded transition-colors hover:bg-overlay"
+            style={{ color: 'var(--text-subtle)' }}
+            title="Refresh statistics"
+          >
+            <RefreshCw size={14} />
+          </button>
+        </div>
       </div>
 
       <div className="flex-1 overflow-auto p-4 space-y-6">
@@ -190,7 +278,7 @@ export const Statistics: React.FC = () => {
           <StatCard
             icon={<GitCommit size={18} style={{ color: 'var(--accent-mauve)' }} />}
             label="Total Commits"
-            value={statistics.total_commits}
+            value={timeDimension === 'all' ? statistics.total_commits : filteredCommits.length}
             color="var(--accent-mauve)"
           />
           <StatCard
@@ -223,6 +311,48 @@ export const Statistics: React.FC = () => {
             value={statistics.total_stashes}
             color="var(--accent-yellow)"
           />
+        </div>
+
+        {/* Line changes cards */}
+        <div className="grid grid-cols-2 gap-3">
+          <div
+            className="flex items-center gap-3 p-4 rounded-lg"
+            style={{
+              backgroundColor: 'var(--bg-overlay)',
+              border: '1px solid var(--border-color)',
+            }}
+          >
+            <div className="p-2 rounded-full" style={{ backgroundColor: 'rgba(166, 227, 161, 0.15)' }}>
+              <TrendingUp size={18} style={{ color: 'var(--accent-green)' }} />
+            </div>
+            <div>
+              <div className="text-lg font-bold font-mono" style={{ color: 'var(--accent-green)' }}>
+                +{lineChanges.insertions.toLocaleString()}
+              </div>
+              <div className="text-xs" style={{ color: 'var(--text-subtle)' }}>
+                Lines Added
+              </div>
+            </div>
+          </div>
+          <div
+            className="flex items-center gap-3 p-4 rounded-lg"
+            style={{
+              backgroundColor: 'var(--bg-overlay)',
+              border: '1px solid var(--border-color)',
+            }}
+          >
+            <div className="p-2 rounded-full" style={{ backgroundColor: 'rgba(243, 139, 168, 0.15)' }}>
+              <TrendingDown size={18} style={{ color: 'var(--accent-red)' }} />
+            </div>
+            <div>
+              <div className="text-lg font-bold font-mono" style={{ color: 'var(--accent-red)' }}>
+                -{lineChanges.deletions.toLocaleString()}
+              </div>
+              <div className="text-xs" style={{ color: 'var(--text-subtle)' }}>
+                Lines Deleted
+              </div>
+            </div>
+          </div>
         </div>
 
         {/* Date range info */}
@@ -268,9 +398,30 @@ export const Statistics: React.FC = () => {
               border: '1px solid var(--border-color)',
             }}
           >
-            <h3 className="text-xs font-medium mb-4" style={{ color: 'var(--text-secondary)' }}>
-              Commits by Author (Top {authorStats.length})
-            </h3>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-xs font-medium" style={{ color: 'var(--text-secondary)' }}>
+                Commits by Author (Top {authorStats.length})
+              </h3>
+              {/* Author filter dropdown */}
+              <select
+                value={selectedAuthor ?? ''}
+                onChange={(e) => setSelectedAuthor(e.target.value || null)}
+                className="px-2 py-0.5 rounded text-xs"
+                style={{
+                  backgroundColor: 'var(--bg-surface)',
+                  borderColor: 'var(--border-color)',
+                  color: 'var(--text-primary)',
+                  border: '1px solid var(--border-color)',
+                }}
+              >
+                <option value="">All Authors</option>
+                {allAuthors.map((author) => (
+                  <option key={author} value={author}>
+                    {author}
+                  </option>
+                ))}
+              </select>
+            </div>
             <div className="px-2">
               <BarChart data={authorStats} />
             </div>

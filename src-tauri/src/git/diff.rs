@@ -7,23 +7,32 @@ pub fn get_diff(
     old_ref: Option<&str>,
     new_ref: Option<&str>,
     path_filter: Option<&str>,
+    ignore_whitespace: Option<bool>,
+    context_lines: Option<u32>,
 ) -> Result<String, GitError> {
     let git = GitCommand::new(path);
 
-    let mut args: Vec<&str> = vec!["diff"];
+    let mut args: Vec<String> = vec!["diff".to_string()];
 
+    if ignore_whitespace == Some(true) {
+        args.push("-w".to_string());
+    }
+    if let Some(cl) = context_lines {
+        args.push(format!("-U{}", cl));
+    }
     if let Some(old) = old_ref {
-        args.push(old);
+        args.push(old.to_string());
     }
     if let Some(new) = new_ref {
-        args.push(new);
+        args.push(new.to_string());
     }
     if let Some(pf) = path_filter {
-        args.push("--");
-        args.push(pf);
+        args.push("--".to_string());
+        args.push(pf.to_string());
     }
 
-    git.read_to_end(&args)
+    let args_ref: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
+    git.read_to_end(&args_ref)
 }
 
 /// Get diff of staged changes for a specific file (or all staged).

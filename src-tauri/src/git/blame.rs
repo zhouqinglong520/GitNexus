@@ -36,6 +36,7 @@ pub fn blame(
     let mut current_author_name = String::new();
     let mut current_author_email = String::new();
     let mut current_author_time: i64 = 0;
+    let mut current_summary = String::new();
 
     for line in output.lines() {
         if line.is_empty() {
@@ -45,6 +46,7 @@ pub fn blame(
         // Header line: SHA orig_line result_line [num_lines]
         if line.len() >= 40 && line.chars().nth(40) == Some(' ') {
             current_sha = line[..40].to_string();
+            current_summary = String::new();
             continue;
         }
 
@@ -67,6 +69,12 @@ pub fn blame(
             continue;
         }
 
+        // Summary line (first line of commit message)
+        if line.starts_with("summary ") {
+            current_summary = line[8..].to_string();
+            continue;
+        }
+
         // Content line: starts with \t
         if line.starts_with('\t') {
             let content = line[1..].to_string();
@@ -77,6 +85,7 @@ pub fn blame(
                 author_time: current_author_time,
                 line_number: 0, // will be set below
                 content,
+                commit_message: current_summary.clone(),
             });
         }
     }

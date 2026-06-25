@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useRepositoryStore } from '@/stores/repository-store';
 import { useGitStore } from '@/stores/git-store';
@@ -10,8 +10,8 @@ import { Histories } from '@/pages/Histories';
 import { WorkingCopy } from '@/pages/WorkingCopy';
 import { Stashes } from '@/pages/Stashes';
 import { useGitWatcher } from '@/hooks/useGitWatcher';
-import { X, Loader2 } from 'lucide-react';
-import type { TabType } from '@/types';
+import { X, Loader2, FolderOpen, Copy } from 'lucide-react';
+import type { TabType, ContextMenuItem } from '@/types';
 
 export const Repository: React.FC = () => {
   const navigate = useNavigate();
@@ -21,6 +21,8 @@ export const Repository: React.FC = () => {
   const setActiveTab = useRepositoryStore((s) => s.setActiveTab);
   const operations = useUIStore((s) => s.operations);
   const fetchAll = useGitStore((s) => s.fetchAll);
+  const openInFileManager = useGitStore((s) => s.openInFileManager);
+  const showContextMenu = useUIStore((s) => s.showContextMenu);
   const { t } = useTranslation();
 
   // Watch for repository changes (auto-refresh status, branches, etc.)
@@ -48,6 +50,69 @@ export const Repository: React.FC = () => {
   const currentTab = tabs.find((t) => t.repoPath === activeRepo);
   const tabType = currentTab?.type ?? activeTabType;
 
+  // Tab context menu handler
+  const handleTabContextMenu = useCallback(
+    (e: React.MouseEvent, tabId: string) => {
+      e.preventDefault();
+      const tab = tabs.find((t) => t.id === tabId);
+      if (!tab) return;
+
+      const tabIndex = tabs.findIndex((t) => t.id === tabId);
+      const items: ContextMenuItem[] = [
+        {
+          id: 'close-tab',
+          label: t('repository.closeTab'),
+          action: () => closeTab(tabId),
+        },
+        {
+          id: 'close-others',
+          label: t('repository.closeOtherTabs'),
+          action: () => {
+            tabs.forEach((t) => {
+              if (t.id !== tabId) closeTab(t.id);
+            });
+          },
+          disabled: tabs.length <= 1,
+        },
+        {
+          id: 'close-right',
+          label: t('repository.closeRightTabs'),
+          action: () => {
+            const rightTabs = tabs.filter((t) => tabs.indexOf(t) > tabIndex);
+            rightTabs.forEach((t) => closeTab(t.id));
+          },
+          disabled: tabIndex >= tabs.length - 1,
+        },
+        {
+          id: 'close-all',
+          label: t('repository.closeAllTabs'),
+          action: () => {
+            tabs.forEach((t) => closeTab(t.id));
+          },
+        },
+        { id: 'sep1', label: '', separator: true },
+        {
+          id: 'copy-path',
+          label: t('repository.copyRepoPath'),
+          icon: <Copy size={12} />,
+          action: () => navigator.clipboard.writeText(tab.repoPath),
+        },
+        {
+          id: 'open-in-file-manager',
+          label: t('repository.openInFileManager'),
+          icon: <FolderOpen size={12} />,
+          action: () => {
+            openInFileManager(tab.repoPath).catch((err) => {
+              console.error('Failed to open file manager:', err);
+            });
+          },
+        },
+      ];
+      showContextMenu(e.clientX, e.clientY, items);
+    },
+    [tabs, closeTab, showContextMenu, t, openInFileManager]
+  );
+
   return (
     <div className="flex h-full">
       {/* Sidebar */}
@@ -66,6 +131,7 @@ export const Repository: React.FC = () => {
               <div
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
+                onContextMenu={(e) => handleTabContextMenu(e, tab.id)}
                 className="flex items-center gap-2 px-3 py-2 text-xs cursor-pointer transition-colors border-r"
                 style={{
                   backgroundColor: tab.repoPath === activeRepo ? 'var(--bg-base)' : 'var(--bg-surface)',

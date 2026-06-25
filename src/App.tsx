@@ -1,5 +1,5 @@
 import { useEffect, useCallback } from 'react';
-import { Routes, Route, Navigate } from 'react-router-dom';
+import { Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { Welcome } from '@/pages/Welcome';
 import { Repository } from '@/pages/Repository';
 import { Settings } from '@/pages/Settings';
@@ -11,6 +11,8 @@ import { ContextMenu } from '@/components/ContextMenu';
 import { CustomTitleBar } from '@/components/CustomTitleBar';
 import { useUIStore } from '@/stores/ui-store';
 import { usePreferencesStore } from '@/stores/preferences-store';
+import { useRepositoryStore } from '@/stores/repository-store';
+import { useGitStore } from '@/stores/git-store';
 import { I18nProvider, useTranslation } from '@/i18n';
 import type { Locale } from '@/i18n';
 import { CheckCircle, XCircle, AlertTriangle, Info } from 'lucide-react';
@@ -149,10 +151,120 @@ function AppContent() {
   // Global keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      // Check if input is focused
+      const target = e.target as HTMLElement;
+      const isInputFocused =
+        target.tagName === 'INPUT' ||
+        target.tagName === 'TEXTAREA' ||
+        target.tagName === 'SELECT' ||
+        target.isContentEditable;
+
       // Ctrl+P or Ctrl+Shift+P to toggle command palette
       if ((e.ctrlKey || e.metaKey) && e.key === 'p') {
         e.preventDefault();
         toggleCommandPalette();
+        return;
+      }
+
+      // Escape to close command palette / dialog
+      if (e.key === 'Escape') {
+        if (commandPaletteOpen) {
+          e.preventDefault();
+          setCommandPaletteOpen(false);
+          return;
+        }
+        if (dialog) {
+          e.preventDefault();
+          closeDialog();
+          return;
+        }
+        return;
+      }
+
+      // Only process remaining shortcuts when not in input
+      if (isInputFocused) return;
+
+      // Ctrl+, -- Open settings
+      if ((e.ctrlKey || e.metaKey) && e.key === ',') {
+        e.preventDefault();
+        window.location.hash = '#/settings';
+        return;
+      }
+
+      // Ctrl+B -- Toggle sidebar
+      if ((e.ctrlKey || e.metaKey) && e.key === 'b') {
+        e.preventDefault();
+        useUIStore.getState().toggleSidebar();
+        return;
+      }
+
+      // Ctrl+W -- Close current tab
+      if ((e.ctrlKey || e.metaKey) && e.key === 'w') {
+        e.preventDefault();
+        const repoStore = useRepositoryStore.getState();
+        const activeRepo = repoStore.activeRepo;
+        if (activeRepo) {
+          const currentTab = repoStore.tabs.find((t) => t.repoPath === activeRepo);
+          if (currentTab) {
+            repoStore.closeTab(currentTab.id);
+          }
+        }
+        return;
+      }
+
+      // F5 -- Refresh current repository data
+      if (e.key === 'F5') {
+        e.preventDefault();
+        const gitStore = useGitStore.getState();
+        if (gitStore.repoPath) {
+          gitStore.fetchAll().catch((err) => {
+            console.error('Failed to refresh:', err);
+          });
+        }
+        return;
+      }
+
+      // Ctrl+Shift+F -- Pull
+      if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'F') {
+        e.preventDefault();
+        const gitStore = useGitStore.getState();
+        if (gitStore.repoPath) {
+          gitStore.pull({ remote: '', branch: '', rebase: false }).catch((err) => {
+            useUIStore.getState().addNotification({ type: 'error', title: 'Pull failed', message: String(err) });
+          });
+        }
+        return;
+      }
+
+      // Ctrl+Shift+E -- Fetch
+      if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'E') {
+        e.preventDefault();
+        const gitStore = useGitStore.getState();
+        if (gitStore.repoPath) {
+          gitStore.fetchRemote({ remote: '', prune: false }).catch((err) => {
+            useUIStore.getState().addNotification({ type: 'error', title: 'Fetch failed', message: String(err) });
+          });
+        }
+        return;
+      }
+
+      // Ctrl+Shift+P -- Push
+      if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'P') {
+        e.preventDefault();
+        const gitStore = useGitStore.getState();
+        if (gitStore.repoPath) {
+          gitStore.push({ remote: '', branch: '', force: false, upstream: false }).catch((err) => {
+            useUIStore.getState().addNotification({ type: 'error', title: 'Push failed', message: String(err) });
+          });
+        }
+        return;
+      }
+
+      // Ctrl+Shift+B -- Create/switch branch (open command palette)
+      if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'B') {
+        e.preventDefault();
+        toggleCommandPalette();
+        return;
       }
     };
 
@@ -160,7 +272,7 @@ function AppContent() {
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
     };
-  }, [toggleCommandPalette]);
+  }, [toggleCommandPalette, commandPaletteOpen, setCommandPaletteOpen, dialog, closeDialog]);
 
   const handleDialogConfirm = useCallback(() => {
     if (dialog?.onConfirm) {

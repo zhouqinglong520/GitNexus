@@ -58,18 +58,24 @@ pub fn git_set_config(path: String, key: String, value: String) -> Result<(), St
 // ============================================================
 
 #[tauri::command]
-pub fn git_get_commits(
+pub async fn git_get_commits(
     path: String,
     branch: Option<String>,
     limit: u32,
     offset: u32,
 ) -> Result<Vec<Commit>, String> {
-    git::log::get_commits(&path, branch.as_deref(), limit, offset).map_err(|e| e.to_string())
+    let result = tokio::task::spawn_blocking(move || {
+        git::log::get_commits(&path, branch.as_deref(), limit, offset)
+    }).await.map_err(|e| e.to_string())?;
+    result.map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-pub fn git_get_commit_detail(path: String, sha: String) -> Result<CommitDetail, String> {
-    git::log::get_commit_detail(&path, &sha).map_err(|e| e.to_string())
+pub async fn git_get_commit_detail(path: String, sha: String) -> Result<CommitDetail, String> {
+    let result = tokio::task::spawn_blocking(move || {
+        git::log::get_commit_detail(&path, &sha)
+    }).await.map_err(|e| e.to_string())?;
+    result.map_err(|e| e.to_string())
 }
 
 // ============================================================
@@ -77,8 +83,11 @@ pub fn git_get_commit_detail(path: String, sha: String) -> Result<CommitDetail, 
 // ============================================================
 
 #[tauri::command]
-pub fn git_get_status(path: String) -> Result<WorktreeStatus, String> {
-    git::status::get_status(&path).map_err(|e| e.to_string())
+pub async fn git_get_status(path: String) -> Result<WorktreeStatus, String> {
+    let result = tokio::task::spawn_blocking(move || {
+        git::status::get_status(&path)
+    }).await.map_err(|e| e.to_string())?;
+    result.map_err(|e| e.to_string())
 }
 
 // ============================================================
@@ -91,8 +100,21 @@ pub fn git_get_diff(
     old_ref: Option<String>,
     new_ref: Option<String>,
     path_filter: Option<String>,
+    ignore_whitespace: Option<bool>,
+    context_lines: Option<u32>,
 ) -> Result<String, String> {
-    git::diff::get_diff(&path, old_ref.as_deref(), new_ref.as_deref(), path_filter.as_deref())
+    git::diff::get_diff(&path, old_ref.as_deref(), new_ref.as_deref(), path_filter.as_deref(), ignore_whitespace, context_lines)
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn git_diff_revisions(
+    path: String,
+    old_ref: String,
+    new_ref: String,
+    path_filter: Option<String>,
+) -> Result<String, String> {
+    git::diff::get_diff(&path, Some(&old_ref), Some(&new_ref), path_filter.as_deref())
         .map_err(|e| e.to_string())
 }
 
@@ -338,8 +360,11 @@ pub fn git_rebase_abort(path: String) -> Result<(), String> {
 // ============================================================
 
 #[tauri::command]
-pub fn git_list_stash(path: String) -> Result<Vec<Stash>, String> {
-    git::stash::list_stash(&path).map_err(|e| e.to_string())
+pub async fn git_list_stash(path: String) -> Result<Vec<Stash>, String> {
+    let result = tokio::task::spawn_blocking(move || {
+        git::stash::list_stash(&path)
+    }).await.map_err(|e| e.to_string())?;
+    result.map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -457,13 +482,16 @@ pub fn git_revert(path: String, sha: String) -> Result<(), String> {
 // ============================================================
 
 #[tauri::command]
-pub fn git_blame(
+pub async fn git_blame(
     path: String,
     file: String,
     line_start: Option<u32>,
     line_end: Option<u32>,
 ) -> Result<Vec<BlameLine>, String> {
-    git::blame::blame(&path, &file, line_start, line_end).map_err(|e| e.to_string())
+    let result = tokio::task::spawn_blocking(move || {
+        git::blame::blame(&path, &file, line_start, line_end)
+    }).await.map_err(|e| e.to_string())?;
+    result.map_err(|e| e.to_string())
 }
 
 // ============================================================
@@ -531,8 +559,8 @@ pub fn git_prune_worktrees(path: String) -> Result<(), String> {
 // ============================================================
 
 #[tauri::command]
-pub fn git_get_statistics(path: String) -> Result<RepositoryStats, String> {
-    git::statistics::get_statistics(&path).map_err(|e| e.to_string())
+pub async fn git_get_statistics(path: String, since: Option<String>) -> Result<RepositoryStats, String> {
+    git::statistics::get_statistics(&path, since.as_deref()).await.map_err(|e| e.to_string())
 }
 
 // ============================================================
@@ -586,7 +614,7 @@ pub fn git_delete_remote_tag(path: String, name: String, remote: String) -> Resu
 // ============================================================
 
 #[tauri::command]
-pub fn git_search_commits(
+pub async fn git_search_commits(
     path: String,
     query: String,
     author: Option<String>,
@@ -594,15 +622,17 @@ pub fn git_search_commits(
     until: Option<String>,
     limit: u32,
 ) -> Result<Vec<Commit>, String> {
-    git::search::search_commits(
-        &path,
-        &query,
-        author.as_deref(),
-        since.as_deref(),
-        until.as_deref(),
-        limit,
-    )
-    .map_err(|e| e.to_string())
+    let result = tokio::task::spawn_blocking(move || {
+        git::search::search_commits(
+            &path,
+            &query,
+            author.as_deref(),
+            since.as_deref(),
+            until.as_deref(),
+            limit,
+        )
+    }).await.map_err(|e| e.to_string())?;
+    result.map_err(|e| e.to_string())
 }
 
 // ============================================================
@@ -699,8 +729,11 @@ pub async fn git_start_interactive_rebase_with_todos(
 // ============================================================
 
 #[tauri::command]
-pub fn git_get_file_history(path: String, file: String, limit: u32) -> Result<Vec<Commit>, String> {
-    git::log::get_file_history(&path, &file, limit).map_err(|e| e.to_string())
+pub async fn git_get_file_history(path: String, file: String, limit: u32) -> Result<Vec<Commit>, String> {
+    let result = tokio::task::spawn_blocking(move || {
+        git::log::get_file_history(&path, &file, limit)
+    }).await.map_err(|e| e.to_string())?;
+    result.map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -970,8 +1003,11 @@ pub fn git_save_repo_config(
 // ============================================================
 
 #[tauri::command]
-pub fn git_run_gc(path: String, aggressive: bool, prune: bool) -> Result<String, String> {
-    git::gc::run_gc(&path, aggressive, prune).map_err(|e| e.to_string())
+pub async fn git_run_gc(path: String, aggressive: bool, prune: bool) -> Result<String, String> {
+    let result = tokio::task::spawn_blocking(move || {
+        git::gc::run_gc(&path, aggressive, prune)
+    }).await.map_err(|e| e.to_string())?;
+    result.map_err(|e| e.to_string())
 }
 
 // ============================================================
@@ -988,21 +1024,27 @@ pub fn git_scan_repositories(directory: String, max_depth: u32) -> Result<Vec<Sc
 // ============================================================
 
 #[tauri::command]
-pub fn git_diff_revision_files(
+pub async fn git_diff_revision_files(
     path: String,
     old_ref: String,
     new_ref: String,
 ) -> Result<Vec<DiffFile>, String> {
-    git::diff::diff_revision_files(&path, &old_ref, &new_ref).map_err(|e| e.to_string())
+    let result = tokio::task::spawn_blocking(move || {
+        git::diff::diff_revision_files(&path, &old_ref, &new_ref)
+    }).await.map_err(|e| e.to_string())?;
+    result.map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-pub fn git_query_file_content(
+pub async fn git_query_file_content(
     path: String,
     ref_name: String,
     file_path: String,
 ) -> Result<String, String> {
-    git::diff::query_file_content(&path, &ref_name, &file_path).map_err(|e| e.to_string())
+    let result = tokio::task::spawn_blocking(move || {
+        git::diff::query_file_content(&path, &ref_name, &file_path)
+    }).await.map_err(|e| e.to_string())?;
+    result.map_err(|e| e.to_string())
 }
 
 // ============================================================

@@ -15,6 +15,7 @@ export function useGitWatcher(repoPath: string | null) {
   const removeOperation = useUIStore((s) => s.removeOperation);
   const addNotification = useUIStore((s) => s.addNotification);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const debouncedFetch = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Set up polling for status changes
   useEffect(() => {
@@ -29,10 +30,10 @@ export function useGitWatcher(repoPath: string | null) {
     // Initial fetch
     fetchStatus();
 
-    // Poll every 3 seconds
+    // Poll every 5 seconds (increased from 3s to reduce CPU usage)
     intervalRef.current = setInterval(() => {
       fetchStatus();
-    }, 3000);
+    }, 5000);
 
     return () => {
       if (intervalRef.current) {
@@ -83,9 +84,12 @@ export function useGitWatcher(repoPath: string | null) {
         });
         unlisteners.push(unlisten3);
 
-        // Listen for file system changes
+        // Listen for file system changes with 500ms debounce
         const unlisten4 = await listen<string>('fs-change', () => {
-          fetchStatus();
+          if (debouncedFetch.current) clearTimeout(debouncedFetch.current);
+          debouncedFetch.current = setTimeout(() => {
+            fetchStatus();
+          }, 500);
         });
         unlisteners.push(unlisten4);
       } catch (error) {
@@ -97,6 +101,10 @@ export function useGitWatcher(repoPath: string | null) {
 
     return () => {
       unlisteners.forEach((unlisten) => unlisten());
+      if (debouncedFetch.current) {
+        clearTimeout(debouncedFetch.current);
+        debouncedFetch.current = null;
+      }
     };
   }, [repoPath, fetchStatus, fetchBranches, addOperation, removeOperation, addNotification]);
 

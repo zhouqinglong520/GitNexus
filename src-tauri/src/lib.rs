@@ -29,6 +29,7 @@ pub fn run() {
             commands::git_get_status,
             // Diff
             commands::git_get_diff,
+            commands::git_diff_revisions,
             commands::git_get_diff_staged,
             commands::git_get_diff_unstaged,
             // Branch

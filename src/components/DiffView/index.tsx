@@ -1,5 +1,5 @@
-import React, { useMemo, useCallback, useState, useEffect } from 'react';
-import { Plus, Minus } from 'lucide-react';
+import React, { useMemo, useCallback, useState, useEffect, useRef } from 'react';
+import { Plus, Minus, ChevronUp, ChevronDown, Search, X } from 'lucide-react';
 import type { DiffFile, DiffHunk, DiffLine } from '@/types';
 import { ImageDiff, isImageFile } from '@/components/ImageDiff';
 
@@ -12,6 +12,10 @@ interface DiffViewProps {
   className?: string;
   onStageHunk?: (file: string, patch: string) => void;
   onUnstageHunk?: (file: string, patch: string) => void;
+  ignoreWhitespace?: boolean;
+  onIgnoreWhitespaceChange?: (value: boolean) => void;
+  contextLines?: number;
+  onContextLinesChange?: (value: number) => void;
 }
 
 // ============================================================
@@ -200,7 +204,11 @@ const UnifiedDiff: React.FC<{
   file: DiffFile;
   onStageHunk?: (file: string, patch: string) => void;
   onUnstageHunk?: (file: string, patch: string) => void;
-}> = ({ file, onStageHunk, onUnstageHunk }) => {
+  currentHunkIndex: number;
+  searchQuery: string;
+  searchMatches: Set<number>;
+  searchCurrentMatch: number;
+}> = ({ file, onStageHunk, onUnstageHunk, currentHunkIndex, searchQuery, searchMatches, searchCurrentMatch }) => {
   const allLines = useMemo(() => {
     const lines: (DiffLine & { hunkHeader?: string; hunkIndex?: number })[] = [];
     for (let hIdx = 0; hIdx < file.hunks.length; hIdx++) {
@@ -219,6 +227,38 @@ const UnifiedDiff: React.FC<{
     }
     return lines;
   }, [file.hunks]);
+
+  // Compute hunk start indices for highlighting
+  const hunkStartIndices = useMemo(() => {
+    const indices: number[] = [];
+    for (let i = 0; i < allLines.length; i++) {
+      if (allLines[i].hunkHeader !== undefined && allLines[i].hunkIndex !== undefined) {
+        indices.push(i);
+      }
+    }
+    return indices;
+  }, [allLines]);
+
+  // Determine if a line is part of the current highlighted hunk
+  const isHighlightedHunk = useCallback((lineIdx: number) => {
+    if (currentHunkIndex < 0 || currentHunkIndex >= hunkStartIndices.length) return false;
+    const startIdx = hunkStartIndices[currentHunkIndex];
+    const endIdx = currentHunkIndex + 1 < hunkStartIndices.length
+      ? hunkStartIndices[currentHunkIndex + 1]
+      : allLines.length;
+    return lineIdx >= startIdx && lineIdx < endIdx;
+  }, [currentHunkIndex, hunkStartIndices, allLines.length]);
+
+  // Search match highlighting
+  const isSearchMatch = useCallback((lineIdx: number) => {
+    return searchMatches.has(lineIdx);
+  }, [searchMatches]);
+
+  const isCurrentSearchMatch = useCallback((lineIdx: number) => {
+    if (searchCurrentMatch < 0) return false;
+    const matchArr = Array.from(searchMatches).sort((a, b) => a - b);
+    return matchArr[searchCurrentMatch] === lineIdx;
+  }, [searchCurrentMatch, searchMatches]);
 
   return (
     <div className="font-mono text-xs" style={{ lineHeight: 1.6 }}>
@@ -253,12 +293,14 @@ const UnifiedDiff: React.FC<{
         {allLines.map((line, idx) => {
           if (line.hunkHeader && line.hunkIndex !== undefined) {
             const hunk = file.hunks[line.hunkIndex];
+            const isHighlighted = isHighlightedHunk(idx);
             return (
               <div
                 key={idx}
+                data-line-index={idx}
                 className="px-3 py-0.5 border-b flex items-center"
                 style={{
-                  backgroundColor: 'var(--bg-mantle)',
+                  backgroundColor: isHighlighted ? 'rgba(137, 180, 250, 0.15)' : 'var(--bg-mantle)',
                   borderBottomColor: 'var(--border-color)',
                   color: 'var(--accent-blue)',
                 }}
@@ -288,11 +330,23 @@ const UnifiedDiff: React.FC<{
                 ? 'var(--accent-red)'
                 : 'var(--text-primary)';
 
+          const isCurrentMatch = isCurrentSearchMatch(idx);
+          const isMatch = isSearchMatch(idx);
+
           return (
             <div
               key={idx}
+              data-line-index={idx}
               className="flex hover:bg-overlay transition-colors"
-              style={{ backgroundColor: bgColor }}
+              style={{
+                backgroundColor: isCurrentMatch
+                  ? 'rgba(249, 226, 175, 0.35)'
+                  : isMatch
+                    ? 'rgba(249, 226, 175, 0.15)'
+                    : bgColor,
+                outline: isCurrentMatch ? '1px solid var(--accent-yellow)' : 'none',
+                outlineOffset: '-1px',
+              }}
             >
               {/* Line numbers */}
               <span
@@ -545,6 +599,169 @@ const StatusBadge: React.FC<{ status: string }> = ({ status }) => {
 };
 
 // ============================================================
+// Diff Toolbar
+// ============================================================
+
+interface DiffToolbarProps {
+  totalHunks: number;
+  currentHunkIndex: number;
+  onHunkNavigate: (index: number) => void;
+  ignoreWhitespace: boolean;
+  onIgnoreWhitespaceChange: (value: boolean) => void;
+  contextLines: number;
+  onContextLinesChange: (value: number) => void;
+  searchQuery: string;
+  onSearchQueryChange: (query: string) => void;
+  searchMatchCount: number;
+  searchCurrentMatch: number;
+  onSearchNavigate: (direction: 'next' | 'prev') => void;
+  onSearchClose: () => void;
+}
+
+const DiffToolbar: React.FC<DiffToolbarProps> = ({
+  totalHunks,
+  currentHunkIndex,
+  onHunkNavigate,
+  ignoreWhitespace,
+  onIgnoreWhitespaceChange,
+  contextLines,
+  onContextLinesChange,
+  searchQuery,
+  onSearchQueryChange,
+  searchMatchCount,
+  searchCurrentMatch,
+  onSearchNavigate,
+  onSearchClose,
+}) => (
+  <div
+    className="flex items-center gap-2 px-3 py-1.5 border-b shrink-0 flex-wrap"
+    style={{
+      borderColor: 'var(--border-color)',
+      backgroundColor: 'var(--bg-surface)',
+    }}
+  >
+    {/* Hunk navigation */}
+    <div className="flex items-center gap-1">
+      <button
+        onClick={() => onHunkNavigate(currentHunkIndex - 1)}
+        disabled={currentHunkIndex <= 0}
+        className="p-1 rounded transition-colors hover:bg-overlay disabled:opacity-30"
+        style={{ color: 'var(--text-secondary)' }}
+        title="Previous hunk (Ctrl+Alt+Up)"
+      >
+        <ChevronUp size={14} />
+      </button>
+      <span className="text-xs font-mono px-1" style={{ color: 'var(--text-subtle)', minWidth: 48, textAlign: 'center' }}>
+        {totalHunks > 0 ? `${currentHunkIndex + 1}/${totalHunks}` : '0/0'}
+      </span>
+      <button
+        onClick={() => onHunkNavigate(currentHunkIndex + 1)}
+        disabled={currentHunkIndex >= totalHunks - 1}
+        className="p-1 rounded transition-colors hover:bg-overlay disabled:opacity-30"
+        style={{ color: 'var(--text-secondary)' }}
+        title="Next hunk (Ctrl+Alt+Down)"
+      >
+        <ChevronDown size={14} />
+      </button>
+    </div>
+
+    {/* Separator */}
+    <div className="w-px h-4" style={{ backgroundColor: 'var(--border-color)' }} />
+
+    {/* Ignore whitespace toggle */}
+    <button
+      onClick={() => onIgnoreWhitespaceChange(!ignoreWhitespace)}
+      className="px-2 py-0.5 rounded text-xs transition-colors"
+      style={{
+        backgroundColor: ignoreWhitespace ? 'var(--accent-blue)' : 'var(--bg-overlay)',
+        color: ignoreWhitespace ? 'var(--bg-base)' : 'var(--text-secondary)',
+        border: '1px solid var(--border-color)',
+      }}
+      title="Ignore whitespace changes (-w)"
+    >
+      -w
+    </button>
+
+    {/* Context lines selector */}
+    <div className="flex items-center gap-1">
+      <span className="text-xs" style={{ color: 'var(--text-subtle)' }}>U:</span>
+      {[1, 3, 5, 10].map((n) => (
+        <button
+          key={n}
+          onClick={() => onContextLinesChange(n)}
+          className="px-1.5 py-0.5 rounded text-xs transition-colors"
+          style={{
+            backgroundColor: contextLines === n ? 'var(--accent-blue)' : 'var(--bg-overlay)',
+            color: contextLines === n ? 'var(--bg-base)' : 'var(--text-secondary)',
+            border: '1px solid var(--border-color)',
+          }}
+        >
+          {n}
+        </button>
+      ))}
+    </div>
+
+    {/* Separator */}
+    <div className="w-px h-4" style={{ backgroundColor: 'var(--border-color)' }} />
+
+    {/* Search */}
+    {searchQuery !== undefined && (
+      <div className="flex items-center gap-1">
+        <div className="relative flex items-center">
+          <Search size={12} className="absolute left-1.5" style={{ color: 'var(--text-subtle)' }} />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => onSearchQueryChange(e.target.value)}
+            placeholder="Search in diff..."
+            className="pl-6 pr-6 py-0.5 rounded text-xs w-40"
+            style={{
+              backgroundColor: 'var(--bg-base)',
+              borderColor: 'var(--border-color)',
+              color: 'var(--text-primary)',
+              border: '1px solid var(--border-color)',
+            }}
+          />
+          {searchQuery && (
+            <button
+              onClick={onSearchClose}
+              className="absolute right-1"
+              style={{ color: 'var(--text-subtle)' }}
+            >
+              <X size={10} />
+            </button>
+          )}
+        </div>
+        {searchQuery && searchMatchCount > 0 && (
+          <>
+            <button
+              onClick={() => onSearchNavigate('prev')}
+              className="p-0.5 rounded hover:bg-overlay"
+              style={{ color: 'var(--text-secondary)' }}
+            >
+              <ChevronUp size={12} />
+            </button>
+            <span className="text-xs font-mono" style={{ color: 'var(--text-subtle)' }}>
+              {searchCurrentMatch + 1}/{searchMatchCount}
+            </span>
+            <button
+              onClick={() => onSearchNavigate('next')}
+              className="p-0.5 rounded hover:bg-overlay"
+              style={{ color: 'var(--text-secondary)' }}
+            >
+              <ChevronDown size={12} />
+            </button>
+          </>
+        )}
+        {searchQuery && searchMatchCount === 0 && (
+          <span className="text-xs" style={{ color: 'var(--text-subtle)' }}>0/0</span>
+        )}
+      </div>
+    )}
+  </div>
+);
+
+// ============================================================
 // Main DiffView component
 // ============================================================
 
@@ -555,6 +772,10 @@ export const DiffView: React.FC<DiffViewProps> = ({
   className = '',
   onStageHunk,
   onUnstageHunk,
+  ignoreWhitespace = false,
+  onIgnoreWhitespaceChange,
+  contextLines = 3,
+  onContextLinesChange,
 }) => {
   const filteredFiles = useMemo(() => {
     if (!filePath) return files;
@@ -566,11 +787,152 @@ export const DiffView: React.FC<DiffViewProps> = ({
   // Image file loading state
   const [imageData, setImageData] = useState<Record<string, { oldImage: string | null; newImage: string | null; oldSize: number; newSize: number }>>({});
 
+  // Hunk navigation state
+  const [currentHunkIndex, setCurrentHunkIndex] = useState(-1);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  // Search state
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchCurrentMatch, setSearchCurrentMatch] = useState(-1);
+
+  // Compute total hunks and hunk indices across all files
+  const { totalHunks, hunkLineMap } = useMemo(() => {
+    let total = 0;
+    const map: Map<number, { fileIdx: number; lineIdx: number }> = new Map();
+    for (let fIdx = 0; fIdx < filteredFiles.length; fIdx++) {
+      const file = filteredFiles[fIdx];
+      let lineCount = 0;
+      for (let hIdx = 0; hIdx < file.hunks.length; hIdx++) {
+        // Each hunk has a header line + its content lines
+        map.set(total, { fileIdx: fIdx, lineIdx: lineCount });
+        total++;
+        lineCount += 1 + file.hunks[hIdx].lines.length;
+      }
+    }
+    return { totalHunks: total, hunkLineMap: map };
+  }, [filteredFiles]);
+
+  // Compute search matches across all files
+  const { searchMatches, searchMatchCount } = useMemo(() => {
+    if (!searchQuery.trim()) {
+      return { searchMatches: new Map<number, Set<number>>(), searchMatchCount: 0 };
+    }
+    const matches = new Map<number, Set<number>>();
+    let count = 0;
+    const query = searchQuery.toLowerCase();
+    for (let fIdx = 0; fIdx < filteredFiles.length; fIdx++) {
+      const file = filteredFiles[fIdx];
+      const fileMatches = new Set<number>();
+      let lineCount = 0;
+      for (let hIdx = 0; hIdx < file.hunks.length; hIdx++) {
+        const hunk = file.hunks[hIdx];
+        lineCount++; // header line
+        for (const line of hunk.lines) {
+          if (line.content.toLowerCase().includes(query)) {
+            fileMatches.add(lineCount);
+            count++;
+          }
+          lineCount++;
+        }
+      }
+      matches.set(fIdx, fileMatches);
+    }
+    return { searchMatches: matches, searchMatchCount: count };
+  }, [filteredFiles, searchQuery]);
+
+  // Flatten search matches for navigation
+  const allSearchMatchPositions = useMemo(() => {
+    const positions: { fileIdx: number; lineIdx: number }[] = [];
+    for (const [fIdx, lineSet] of searchMatches) {
+      for (const lineIdx of lineSet) {
+        positions.push({ fileIdx: fIdx, lineIdx });
+      }
+    }
+    positions.sort((a, b) => a.fileIdx !== b.fileIdx ? a.fileIdx - b.fileIdx : a.lineIdx - b.lineIdx);
+    return positions;
+  }, [searchMatches]);
+
+  // Hunk navigation handler
+  const handleHunkNavigate = useCallback((index: number) => {
+    const clamped = Math.max(0, Math.min(index, totalHunks - 1));
+    setCurrentHunkIndex(clamped);
+    // Scroll to the hunk
+    const info = hunkLineMap.get(clamped);
+    if (info && containerRef.current) {
+      const elements = containerRef.current.querySelectorAll(`[data-file-index="${info.fileIdx}"] [data-line-index="${info.lineIdx}"]`);
+      if (elements.length > 0) {
+        elements[0].scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    }
+  }, [totalHunks, hunkLineMap]);
+
+  // Search navigation handler
+  const handleSearchNavigate = useCallback((direction: 'next' | 'prev') => {
+    if (allSearchMatchPositions.length === 0) return;
+    let next = direction === 'next' ? searchCurrentMatch + 1 : searchCurrentMatch - 1;
+    if (next >= allSearchMatchPositions.length) next = 0;
+    if (next < 0) next = allSearchMatchPositions.length - 1;
+    setSearchCurrentMatch(next);
+    const pos = allSearchMatchPositions[next];
+    if (pos && containerRef.current) {
+      const elements = containerRef.current.querySelectorAll(`[data-file-index="${pos.fileIdx}"] [data-line-index="${pos.lineIdx}"]`);
+      if (elements.length > 0) {
+        elements[0].scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    }
+  }, [allSearchMatchPositions, searchCurrentMatch]);
+
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Hunk navigation: Ctrl+Alt+Home/Up/Down/End
+      if (e.ctrlKey && e.altKey) {
+        if (e.key === 'Home') {
+          e.preventDefault();
+          handleHunkNavigate(0);
+        } else if (e.key === 'End') {
+          e.preventDefault();
+          handleHunkNavigate(totalHunks - 1);
+        } else if (e.key === 'ArrowUp') {
+          e.preventDefault();
+          handleHunkNavigate(currentHunkIndex - 1);
+        } else if (e.key === 'ArrowDown') {
+          e.preventDefault();
+          handleHunkNavigate(currentHunkIndex + 1);
+        }
+      }
+      // Search: Ctrl+F
+      if (e.ctrlKey && !e.altKey && e.key === 'f') {
+        e.preventDefault();
+        const searchInput = containerRef.current?.querySelector('input[type="text"]') as HTMLInputElement;
+        if (searchInput) {
+          searchInput.focus();
+          searchInput.select();
+        }
+      }
+      // Search navigation: Enter (next), Shift+Enter (prev)
+      if (searchQuery && e.key === 'Enter') {
+        e.preventDefault();
+        handleSearchNavigate(e.shiftKey ? 'prev' : 'next');
+      }
+      // Escape to close search
+      if (e.key === 'Escape' && searchQuery) {
+        setSearchQuery('');
+        setSearchCurrentMatch(-1);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [handleHunkNavigate, currentHunkIndex, totalHunks, searchQuery, handleSearchNavigate]);
+
+  // Reset search current match when query changes
+  useEffect(() => {
+    setSearchCurrentMatch(searchMatchCount > 0 ? 0 : -1);
+  }, [searchMatchCount]);
+
   // Load image data for image files (placeholder - actual implementation would use git_query_file_content)
   const loadImageData = useCallback(async (file: DiffFile) => {
     const key = `${file.old_path}-${file.new_path}`;
-    // For now, mark image files as binary without loading actual image data
-    // The backend would need to provide base64-encoded image content via git_query_file_content
     setImageData((prev) => ({
       ...prev,
       [key]: { oldImage: null, newImage: null, oldSize: 0, newSize: 0 },
@@ -598,36 +960,68 @@ export const DiffView: React.FC<DiffViewProps> = ({
   }
 
   return (
-    <div className={`overflow-auto h-full ${className}`}>
-      {filteredFiles.map((file, idx) => {
-        const isImage = isImageFile(file.new_path) || isImageFile(file.old_path);
+    <div className={`flex flex-col h-full ${className}`}>
+      {/* Toolbar */}
+      <DiffToolbar
+        totalHunks={totalHunks}
+        currentHunkIndex={currentHunkIndex}
+        onHunkNavigate={handleHunkNavigate}
+        ignoreWhitespace={ignoreWhitespace}
+        onIgnoreWhitespaceChange={onIgnoreWhitespaceChange ?? (() => {})}
+        contextLines={contextLines}
+        onContextLinesChange={onContextLinesChange ?? (() => {})}
+        searchQuery={searchQuery}
+        onSearchQueryChange={setSearchQuery}
+        searchMatchCount={searchMatchCount}
+        searchCurrentMatch={searchCurrentMatch}
+        onSearchNavigate={handleSearchNavigate}
+        onSearchClose={() => { setSearchQuery(''); setSearchCurrentMatch(-1); }}
+      />
 
-        if (isImage) {
-          const key = `${file.old_path}-${file.new_path}`;
-          const data = imageData[key] ?? { oldImage: null, newImage: null, oldSize: 0, newSize: 0 };
+      {/* Diff content */}
+      <div ref={containerRef} className="overflow-auto flex-1">
+        {filteredFiles.map((file, idx) => {
+          const isImage = isImageFile(file.new_path) || isImageFile(file.old_path);
+
+          if (isImage) {
+            const key = `${file.old_path}-${file.new_path}`;
+            const data = imageData[key] ?? { oldImage: null, newImage: null, oldSize: 0, newSize: 0 };
+            return (
+              <div key={`${file.new_path}-${idx}`} data-file-index={idx} className="border-b" style={{ borderColor: 'var(--border-color)' }}>
+                <ImageDiff
+                  oldImage={data.oldImage}
+                  newImage={data.newImage}
+                  oldSize={data.oldSize}
+                  newSize={data.newSize}
+                  filePath={file.new_path}
+                />
+              </div>
+            );
+          }
+
           return (
-            <div key={`${file.new_path}-${idx}`} className="border-b" style={{ borderColor: 'var(--border-color)' }}>
-              <ImageDiff
-                oldImage={data.oldImage}
-                newImage={data.newImage}
-                oldSize={data.oldSize}
-                newSize={data.newSize}
-                filePath={file.new_path}
-              />
+            <div key={`${file.new_path}-${idx}`} data-file-index={idx} className="border-b" style={{ borderColor: 'var(--border-color)' }}>
+              {mode === 'unified' ? (
+                <UnifiedDiff
+                  file={file}
+                  onStageHunk={onStageHunk}
+                  onUnstageHunk={onUnstageHunk}
+                  currentHunkIndex={currentHunkIndex}
+                  searchQuery={searchQuery}
+                  searchMatches={searchMatches.get(idx) ?? new Set()}
+                  searchCurrentMatch={
+                    searchCurrentMatch >= 0 && allSearchMatchPositions[searchCurrentMatch]?.fileIdx === idx
+                      ? allSearchMatchPositions[searchCurrentMatch].lineIdx
+                      : -1
+                  }
+                />
+              ) : (
+                <SideBySideDiff file={file} onStageHunk={onStageHunk} onUnstageHunk={onUnstageHunk} />
+              )}
             </div>
           );
-        }
-
-        return (
-          <div key={`${file.new_path}-${idx}`} className="border-b" style={{ borderColor: 'var(--border-color)' }}>
-            {mode === 'unified' ? (
-              <UnifiedDiff file={file} onStageHunk={onStageHunk} onUnstageHunk={onUnstageHunk} />
-            ) : (
-              <SideBySideDiff file={file} onStageHunk={onStageHunk} onUnstageHunk={onUnstageHunk} />
-            )}
-          </div>
-        );
-      })}
+        })}
+      </div>
     </div>
   );
 };

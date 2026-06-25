@@ -156,6 +156,7 @@ pub struct BlameLine {
     pub author_time: i64,
     pub line_number: u32,
     pub content: String,
+    pub commit_message: String,
 }
 
 // ============================================================
@@ -224,8 +225,13 @@ pub struct RepositoryStats {
     pub total_authors: u64,
     pub total_branches: u64,
     pub total_tags: u64,
-    pub total_files: u64,
-    pub repo_size: u64,
+    pub total_remotes: u64,
+    pub total_stashes: u64,
+    pub total_worktrees: u64,
+    pub first_commit_time: Option<i64>,
+    pub last_commit_time: Option<i64>,
+    pub total_insertions: u64,
+    pub total_deletions: u64,
 }
 
 // ============================================================

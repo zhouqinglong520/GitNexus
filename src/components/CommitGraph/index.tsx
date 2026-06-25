@@ -74,7 +74,18 @@ export const CommitGraph: React.FC<CommitGraphProps> = ({
   const containerRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<number>(0);
   const visibleRangeRef = useRef<{ start: number; end: number }>({ start: 0, end: 0 });
+  const rafRef = useRef<number>(0);
   const [dragOverBranch, setDragOverBranch] = useState<string | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
+
+  // Pre-build sha -> index map for O(1) lookup instead of findIndex O(n)
+  const shaIndexMap = useMemo(() => {
+    const map = new Map<string, number>();
+    for (let i = 0; i < commits.length; i++) {
+      map.set(commits[i].sha, i);
+    }
+    return map;
+  }, [commits]);
 
   // Assign lanes to commits using a simple lane assignment algorithm
   const graphData = useMemo(() => {
@@ -149,15 +160,15 @@ export const CommitGraph: React.FC<CommitGraphProps> = ({
       const { nodes } = graphData;
       const visibleNodes = nodes.slice(startIdx, endIdx);
 
-      // Draw connections (bezier curves)
+      // Draw connections (bezier curves) - using shaIndexMap for O(1) parent lookup
       for (let i = startIdx; i < endIdx; i++) {
         const node = nodes[i];
         const x = PADDING_LEFT + node.lane * LANE_WIDTH + LANE_WIDTH / 2;
         const y = (i - startIdx) * rowHeight + rowHeight / 2;
 
         for (const parentId of node.commit.parents) {
-          const parentIdx = commits.findIndex((c) => c.sha === parentId);
-          if (parentIdx < 0 || parentIdx >= commits.length) continue;
+          const parentIdx = shaIndexMap.get(parentId);
+          if (parentIdx === undefined || parentIdx < 0 || parentIdx >= commits.length) continue;
 
           const parentNode = nodes[parentIdx];
           if (!parentNode) continue;
@@ -233,10 +244,10 @@ export const CommitGraph: React.FC<CommitGraphProps> = ({
         }
       }
     },
-    [graphData, selectedCommitId, rowHeight, nodeRadius, commits]
+    [graphData, selectedCommitId, rowHeight, nodeRadius, commits, shaIndexMap]
   );
 
-  // Handle scroll and resize
+  // Handle scroll and resize with requestAnimationFrame throttling
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
@@ -246,12 +257,20 @@ export const CommitGraph: React.FC<CommitGraphProps> = ({
       const startIdx = Math.floor(container.scrollTop / rowHeight);
       const endIdx = Math.min(startIdx + Math.ceil(container.clientHeight / rowHeight) + 1, commits.length);
       visibleRangeRef.current = { start: startIdx, end: endIdx };
-      drawGraph(startIdx, endIdx);
+
+      // Throttle with requestAnimationFrame
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+      rafRef.current = requestAnimationFrame(() => {
+        drawGraph(startIdx, endIdx);
+      });
     };
 
     const handleResize = () => {
       const { start, end } = visibleRangeRef.current;
-      drawGraph(start, end);
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+      rafRef.current = requestAnimationFrame(() => {
+        drawGraph(start, end);
+      });
     };
 
     container.addEventListener('scroll', handleScroll);
@@ -266,6 +285,7 @@ export const CommitGraph: React.FC<CommitGraphProps> = ({
     return () => {
       container.removeEventListener('scroll', handleScroll);
       window.removeEventListener('resize', handleResize);
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
     };
   }, [drawGraph, commits.length, rowHeight]);
 
@@ -288,11 +308,16 @@ export const CommitGraph: React.FC<CommitGraphProps> = ({
   // Drag handlers for commit nodes
   const handleDragStart = useCallback(
     (e: React.DragEvent, sha: string) => {
+      setIsDragging(true);
       e.dataTransfer.setData('text/plain', JSON.stringify({ type: 'commit', sha }));
       e.dataTransfer.effectAllowed = 'copy';
     },
     []
   );
+
+  const handleDragEnd = useCallback(() => {
+    setIsDragging(false);
+  }, []);
 
   const handleBranchDragOver = useCallback((e: React.DragEvent, branchName: string) => {
     e.preventDefault();
@@ -308,6 +333,7 @@ export const CommitGraph: React.FC<CommitGraphProps> = ({
     (e: React.DragEvent, branchName: string) => {
       e.preventDefault();
       setDragOverBranch(null);
+      setIsDragging(false);
       try {
         const data = JSON.parse(e.dataTransfer.getData('text/plain'));
         if (data.type === 'commit' && data.sha && onDragCommit) {
@@ -350,27 +376,28 @@ export const CommitGraph: React.FC<CommitGraphProps> = ({
         }}
       />
 
-      {/* Invisible draggable overlay for commit nodes */}
-      {graphData.nodes.map((node, idx) => {
+      {/* Invisible draggable overlay for commit nodes - only render during drag */}
+      {isDragging && graphData.nodes.map((node, idx) => {
         const x = PADDING_LEFT + node.lane * LANE_WIDTH + LANE_WIDTH / 2;
         const y = idx * rowHeight + rowHeight / 2;
         const hitSize = (nodeRadius + 6) * 2;
         return (
           <div
             key={node.commit.sha}
-            draggable={!!onDragCommit}
+            draggable
             onDragStart={(e) => handleDragStart(e, node.commit.sha)}
+            onDragEnd={handleDragEnd}
             style={{
               position: 'absolute',
               left: x - hitSize / 2,
               top: y - hitSize / 2,
               width: hitSize,
               height: hitSize,
-              cursor: onDragCommit ? 'grab' : 'default',
+              cursor: 'grab',
               zIndex: 10,
               borderRadius: '50%',
             }}
-            title={onDragCommit ? `Drag to cherry-pick ${node.commit.sha.slice(0, 7)}` : undefined}
+            title={`Drag to cherry-pick ${node.commit.sha.slice(0, 7)}`}
           />
         );
       })}

@@ -1,6 +1,7 @@
 use std::process::Stdio;
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::Command;
+use tokio::time::{timeout, Duration};
 
 /// Error type for all git operations.
 #[derive(Debug, thiserror::Error)]
@@ -170,23 +171,26 @@ impl GitCommand {
     }
 
     /// Execute a git command asynchronously, read all stdout to end.
+    /// Includes a 60-second timeout to prevent hanging on large operations.
     pub async fn read_to_end_async(&self, args: &[&str]) -> Result<String, GitError> {
         let mut cmd = self.base_cmd();
         cmd.args(args)
             .stdout(Stdio::piped())
             .stderr(Stdio::piped());
 
-        let output = cmd
-            .output()
-            .await
-            .map_err(|e| GitError::ProcessError(e.to_string()))?;
-
-        if output.status.success() {
-            Ok(String::from_utf8_lossy(&output.stdout).to_string())
-        } else {
-            Err(GitError::CommandError(
-                String::from_utf8_lossy(&output.stderr).to_string(),
-            ))
+        let result = timeout(Duration::from_secs(60), cmd.output()).await;
+        match result {
+            Ok(Ok(output)) => {
+                if output.status.success() {
+                    Ok(String::from_utf8_lossy(&output.stdout).to_string())
+                } else {
+                    Err(GitError::CommandError(
+                        String::from_utf8_lossy(&output.stderr).to_string(),
+                    ))
+                }
+            }
+            Ok(Err(e)) => Err(GitError::ProcessError(e.to_string())),
+            Err(_) => Err(GitError::Timeout),
         }
     }
 }

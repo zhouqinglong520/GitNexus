@@ -41,6 +41,24 @@ import type {
   LfsLock,
 } from '@/types';
 
+// ============================================================
+// Request deduplication: avoid duplicate in-flight Tauri calls
+// ============================================================
+
+const pendingRequests = new Map<string, Promise<any>>();
+
+async function dedupedInvoke<T>(command: string, args?: any): Promise<T> {
+  const key = JSON.stringify({ command, args });
+  if (pendingRequests.has(key)) {
+    return pendingRequests.get(key) as Promise<T>;
+  }
+  const promise = invoke<T>(command, args).finally(() => {
+    pendingRequests.delete(key);
+  });
+  pendingRequests.set(key, promise);
+  return promise;
+}
+
 interface GitStore {
   // Repository path
   repoPath: string | null;
@@ -106,7 +124,7 @@ interface GitStore {
   fetchBlame: (params: BlameParams) => Promise<void>;
   fetchCommitDetail: (sha: string) => Promise<void>;
   fetchWorktrees: () => Promise<void>;
-  fetchStatistics: () => Promise<void>;
+  fetchStatistics: (since?: string) => Promise<void>;
   fetchInProgress: () => Promise<void>;
   fetchAll: () => Promise<void>;
 
@@ -191,6 +209,72 @@ interface GitStore {
   lfsUnlock: (file: string, force?: boolean) => Promise<void>;
   lfsListLocks: () => Promise<LfsLock[]>;
 
+  // Rebase additional
+  rebaseEditMessage: (message: string) => Promise<void>;
+  startInteractiveRebase: (onto?: string) => Promise<void>;
+  startInteractiveRebaseWithTodos: (path: string, todos: Array<{ hash: string; action: string }>) => Promise<void>;
+
+  // Branch additional
+  queryTrackStatus: (branch: string) => Promise<any>;
+
+  // Submodule additional
+  deinitSubmodule: (name: string) => Promise<void>;
+  setSubmoduleBranch: (name: string, branch: string) => Promise<void>;
+  changeSubmoduleUrl: (name: string, url: string) => Promise<void>;
+
+  // Diff additional
+  diffRevisionFiles: (oldRef: string, newRef: string) => Promise<any[]>;
+  queryFileContent: (refName: string, filePath: string) => Promise<string>;
+
+  // Statistics additional
+  runGc: (aggressive?: boolean, prune?: boolean) => Promise<string>;
+
+  // Platform additional
+  findGitExecutable: () => Promise<string>;
+  findExternalTools: () => Promise<any[]>;
+
+  // Avatar
+  getAvatar: (email: string, name: string) => Promise<string | null>;
+
+  // Mirror
+  testMirrorLatency: (url: string) => Promise<number>;
+  getMirrorUrl: (originalUrl: string, mirrorType: string) => Promise<string>;
+
+  // AI
+  aiGenerateCommitMessage: (diffText: string, provider: string, apiUrl: string, apiKey: string, model: string, extraPrompt: string) => Promise<string>;
+  aiFetchModels: (provider: string, apiUrl: string, apiKey: string) => Promise<string[]>;
+
+  // PR
+  detectPlatform: (remoteUrl: string) => Promise<string>;
+  createPullRequest: (config: { platform: string; apiUrl: string; token: string; owner: string; repo: string; title: string; body: string; head: string; base: string }) => Promise<string>;
+
+  // GitFlow
+  gitflowInit: (params: { master?: string; develop?: string; feature?: string; release?: string; hotfix?: string; support?: string; versionTagPrefix?: string }) => Promise<void>;
+  gitflowStart: (params: { branchType: string; name: string; base?: string }) => Promise<void>;
+  gitflowFinish: (params: { branchType: string; name: string; fetch?: boolean; rebase?: boolean; keepBranch?: boolean; push?: boolean; message?: string }) => Promise<void>;
+  gitflowList: () => Promise<any>;
+
+  // Bisect
+  bisectStart: (params: { bad?: string; good?: string }) => Promise<void>;
+  bisectMark: (params: { state: string; revision?: string }) => Promise<any>;
+  bisectReset: () => Promise<void>;
+  bisectLog: () => Promise<string>;
+  bisectStatus: () => Promise<any>;
+
+  // Custom Action
+  executeCustomAction: (params: { action: any; variableValues: Record<string, string> }) => Promise<string>;
+
+  // Repo Config
+  getRepoConfig: () => Promise<any>;
+  saveRepoConfig: (config: any) => Promise<void>;
+
+  // Command Log
+  getCommandLogs: (offset?: number, limit?: number) => Promise<any[]>;
+  clearCommandLogs: () => Promise<void>;
+
+  // App
+  getAppVersion: () => Promise<string>;
+
   // Selection
   setSelectedCommitId: (id: string | null) => void;
 }
@@ -256,7 +340,7 @@ export const useGitStore = create<GitStore>((set, get) => ({
     const path = requirePath(get());
     set((s) => ({ loading: { ...s.loading, commits: true }, errors: { ...s.errors, commits: null } }));
     try {
-      const commits: Commit[] = await invoke('git_get_commits', {
+      const commits: Commit[] = await dedupedInvoke('git_get_commits', {
         path,
         branch: params?.path ?? null,
         limit: params?.max_count ?? 200,
@@ -274,7 +358,7 @@ export const useGitStore = create<GitStore>((set, get) => ({
     const path = requirePath(get());
     set((s) => ({ loading: { ...s.loading, branches: true }, errors: { ...s.errors, branches: null } }));
     try {
-      const branches: Branch[] = await invoke('git_list_branches', { path });
+      const branches: Branch[] = await dedupedInvoke('git_list_branches', { path });
       set({ branches });
     } catch (e) {
       set((s) => ({ errors: { ...s.errors, branches: String(e) } }));
@@ -287,7 +371,7 @@ export const useGitStore = create<GitStore>((set, get) => ({
     const path = requirePath(get());
     set((s) => ({ loading: { ...s.loading, tags: true }, errors: { ...s.errors, tags: null } }));
     try {
-      const tags: Tag[] = await invoke('git_list_tags', { path });
+      const tags: Tag[] = await dedupedInvoke('git_list_tags', { path });
       set({ tags });
     } catch (e) {
       set((s) => ({ errors: { ...s.errors, tags: String(e) } }));
@@ -300,7 +384,7 @@ export const useGitStore = create<GitStore>((set, get) => ({
     const path = requirePath(get());
     set((s) => ({ loading: { ...s.loading, remotes: true }, errors: { ...s.errors, remotes: null } }));
     try {
-      const remotes: Remote[] = await invoke('git_get_remotes', { path });
+      const remotes: Remote[] = await dedupedInvoke('git_get_remotes', { path });
       set({ remotes });
     } catch (e) {
       set((s) => ({ errors: { ...s.errors, remotes: String(e) } }));
@@ -313,7 +397,7 @@ export const useGitStore = create<GitStore>((set, get) => ({
     const path = requirePath(get());
     set((s) => ({ loading: { ...s.loading, stashes: true }, errors: { ...s.errors, stashes: null } }));
     try {
-      const stashes: Stash[] = await invoke('git_list_stash', { path });
+      const stashes: Stash[] = await dedupedInvoke('git_list_stash', { path });
       set({ stashes });
     } catch (e) {
       set((s) => ({ errors: { ...s.errors, stashes: String(e) } }));
@@ -326,7 +410,7 @@ export const useGitStore = create<GitStore>((set, get) => ({
     const path = requirePath(get());
     set((s) => ({ loading: { ...s.loading, status: true }, errors: { ...s.errors, status: null } }));
     try {
-      const status: Status = await invoke('git_get_status', { path });
+      const status: Status = await dedupedInvoke('git_get_status', { path });
       set({ status });
     } catch (e) {
       set((s) => ({ errors: { ...s.errors, status: String(e) } }));
@@ -339,11 +423,13 @@ export const useGitStore = create<GitStore>((set, get) => ({
     const path = requirePath(get());
     set((s) => ({ loading: { ...s.loading, diff: true }, errors: { ...s.errors, diff: null } }));
     try {
-      const diff: string = await invoke('git_get_diff', {
+      const diff: string = await dedupedInvoke('git_get_diff', {
         path,
         oldRef: params.commit1 ?? null,
         newRef: params.commit2 ?? null,
         pathFilter: params.path ?? null,
+        ignoreWhitespace: params.ignoreWhitespace ?? null,
+        contextLines: params.contextLines ?? null,
       });
       set({ diff });
     } catch (e) {
@@ -357,7 +443,7 @@ export const useGitStore = create<GitStore>((set, get) => ({
     const path = requirePath(get());
     set((s) => ({ loading: { ...s.loading, diff: true }, errors: { ...s.errors, diff: null } }));
     try {
-      const diff: string = await invoke('git_get_diff_staged', { path, file: file ?? null });
+      const diff: string = await dedupedInvoke('git_get_diff_staged', { path, file: file ?? null });
       set({ diff });
     } catch (e) {
       set((s) => ({ errors: { ...s.errors, diff: String(e) } }));
@@ -370,7 +456,7 @@ export const useGitStore = create<GitStore>((set, get) => ({
     const path = requirePath(get());
     set((s) => ({ loading: { ...s.loading, diff: true }, errors: { ...s.errors, diff: null } }));
     try {
-      const diff: string = await invoke('git_get_diff_unstaged', { path, file: file ?? null });
+      const diff: string = await dedupedInvoke('git_get_diff_unstaged', { path, file: file ?? null });
       set({ diff });
     } catch (e) {
       set((s) => ({ errors: { ...s.errors, diff: String(e) } }));
@@ -384,7 +470,7 @@ export const useGitStore = create<GitStore>((set, get) => ({
     set((s) => ({ loading: { ...s.loading, blame: true }, errors: { ...s.errors, blame: null } }));
     try {
       // Backend returns Vec<BlameLine>, wrap into BlameResult
-      const lines = (await invoke('git_blame', {
+      const lines = (await dedupedInvoke('git_blame', {
         path,
         file: params.path,
         lineStart: params.lines?.start ?? null,
@@ -403,7 +489,7 @@ export const useGitStore = create<GitStore>((set, get) => ({
     const path = requirePath(get());
     set((s) => ({ loading: { ...s.loading, commitDetail: true }, errors: { ...s.errors, commitDetail: null } }));
     try {
-      const detail: CommitDetail = await invoke('git_get_commit_detail', { path, sha });
+      const detail: CommitDetail = await dedupedInvoke('git_get_commit_detail', { path, sha });
       set({ commitDetail: detail });
     } catch (e) {
       set((s) => ({ errors: { ...s.errors, commitDetail: String(e) } }));
@@ -416,7 +502,7 @@ export const useGitStore = create<GitStore>((set, get) => ({
     const path = requirePath(get());
     set((s) => ({ loading: { ...s.loading, worktrees: true }, errors: { ...s.errors, worktrees: null } }));
     try {
-      const worktrees: Worktree[] = await invoke('git_list_worktrees', { path });
+      const worktrees: Worktree[] = await dedupedInvoke('git_list_worktrees', { path });
       set({ worktrees });
     } catch (e) {
       set((s) => ({ errors: { ...s.errors, worktrees: String(e) } }));
@@ -425,11 +511,11 @@ export const useGitStore = create<GitStore>((set, get) => ({
     }
   },
 
-  fetchStatistics: async () => {
+  fetchStatistics: async (since?: string) => {
     const path = requirePath(get());
     set((s) => ({ loading: { ...s.loading, statistics: true }, errors: { ...s.errors, statistics: null } }));
     try {
-      const stats: RepositoryStats = await invoke('git_get_statistics', { path });
+      const stats: RepositoryStats = await dedupedInvoke('git_get_statistics', { path, since: since ?? null });
       set({ statistics: stats });
     } catch (e) {
       set((s) => ({ errors: { ...s.errors, statistics: String(e) } }));
@@ -451,7 +537,7 @@ export const useGitStore = create<GitStore>((set, get) => ({
 
   commit: async (params: CommitParams) => {
     const path = requirePath(get());
-    await invoke('git_commit', {
+    await dedupedInvoke('git_commit', {
       path,
       message: params.message,
       amend: params.amend,
@@ -463,56 +549,56 @@ export const useGitStore = create<GitStore>((set, get) => ({
 
   stage: async (params: StageParams) => {
     const path = requirePath(get());
-    await invoke('git_stage', { path, files: params.paths });
+    await dedupedInvoke('git_stage', { path, files: params.paths });
     await get().fetchStatus();
   },
 
   unstage: async (params: UnstageParams) => {
     const path = requirePath(get());
-    await invoke('git_unstage', { path, files: params.paths });
+    await dedupedInvoke('git_unstage', { path, files: params.paths });
     await get().fetchStatus();
   },
 
   stageAll: async () => {
     const path = requirePath(get());
-    await invoke('git_stage_all', { path });
+    await dedupedInvoke('git_stage_all', { path });
     await get().fetchStatus();
   },
 
   unstageAll: async () => {
     const path = requirePath(get());
-    await invoke('git_unstage_all', { path });
+    await dedupedInvoke('git_unstage_all', { path });
     await get().fetchStatus();
   },
 
   stageHunk: async (file: string, patch: string) => {
     const path = requirePath(get());
-    await invoke('git_stage_hunk', { path, file, patchText: patch });
+    await dedupedInvoke('git_stage_hunk', { path, file, patchText: patch });
     await get().fetchStatus();
   },
 
   unstageHunk: async (file: string, patch: string) => {
     const path = requirePath(get());
-    await invoke('git_unstage_hunk', { path, file, patchText: patch });
+    await dedupedInvoke('git_unstage_hunk', { path, file, patchText: patch });
     await get().fetchStatus();
   },
 
   checkout: async (params: CheckoutParams) => {
     const path = requirePath(get());
-    await invoke('git_checkout_branch', { path, name: params.branch });
+    await dedupedInvoke('git_checkout_branch', { path, name: params.branch });
     await get().fetchAll();
   },
 
   discard: async (paths: string[]) => {
     const path = requirePath(get());
-    await invoke('git_discard_changes', { path, files: paths });
+    await dedupedInvoke('git_discard_changes', { path, files: paths });
     await get().fetchStatus();
   },
 
   fetchRemote: async (params: FetchParams) => {
     const path = requirePath(get());
     const appHandle = getCurrentWebviewWindow();
-    await invoke('git_fetch', {
+    await dedupedInvoke('git_fetch', {
       path,
       remote: params.remote || null,
       prune: params.prune,
@@ -527,7 +613,7 @@ export const useGitStore = create<GitStore>((set, get) => ({
   pull: async (params: PullParams) => {
     const path = requirePath(get());
     const appHandle = getCurrentWebviewWindow();
-    await invoke('git_pull', {
+    await dedupedInvoke('git_pull', {
       path,
       remote: params.remote || null,
       branch: params.branch || null,
@@ -542,7 +628,7 @@ export const useGitStore = create<GitStore>((set, get) => ({
   push: async (params: PushParams) => {
     const path = requirePath(get());
     const appHandle = getCurrentWebviewWindow();
-    await invoke('git_push', {
+    await dedupedInvoke('git_push', {
       path,
       remote: params.remote || null,
       branch: params.branch || null,
@@ -558,7 +644,7 @@ export const useGitStore = create<GitStore>((set, get) => ({
 
   stash: async (params: StashParams) => {
     const path = requirePath(get());
-    await invoke('git_push_stash', {
+    await dedupedInvoke('git_push_stash', {
       path,
       message: params.message || null,
       keepIndex: params.keep_index,
@@ -570,32 +656,32 @@ export const useGitStore = create<GitStore>((set, get) => ({
 
   stashPop: async (params: StashPopParams) => {
     const path = requirePath(get());
-    await invoke('git_pop_stash', { path, index: params.index });
+    await dedupedInvoke('git_pop_stash', { path, index: params.index });
     await get().fetchStashes();
     await get().fetchStatus();
   },
 
   stashDrop: async (params: StashDropParams) => {
     const path = requirePath(get());
-    await invoke('git_drop_stash', { path, index: params.index });
+    await dedupedInvoke('git_drop_stash', { path, index: params.index });
     await get().fetchStashes();
   },
 
   applyStash: async (index: number) => {
     const path = requirePath(get());
-    await invoke('git_apply_stash', { path, index });
+    await dedupedInvoke('git_apply_stash', { path, index });
     await get().fetchStatus();
   },
 
   clearStash: async () => {
     const path = requirePath(get());
-    await invoke('git_clear_stash', { path });
+    await dedupedInvoke('git_clear_stash', { path });
     await get().fetchStashes();
   },
 
   reset: async (params: ResetParams) => {
     const path = requirePath(get());
-    await invoke('git_reset', { path, sha: params.commit, mode: params.mode });
+    await dedupedInvoke('git_reset', { path, sha: params.commit, mode: params.mode });
     await get().fetchAll();
   },
 
@@ -603,26 +689,26 @@ export const useGitStore = create<GitStore>((set, get) => ({
     const path = requirePath(get());
     // Backend takes a single sha, cherry-pick each commit in sequence
     for (const sha of params.commits) {
-      await invoke('git_cherry_pick', { path, sha });
+      await dedupedInvoke('git_cherry_pick', { path, sha });
     }
     await get().fetchAll();
   },
 
   cherryPickContinue: async () => {
     const path = requirePath(get());
-    await invoke('git_cherry_pick_continue', { path });
+    await dedupedInvoke('git_cherry_pick_continue', { path });
     await get().fetchAll();
   },
 
   cherryPickAbort: async () => {
     const path = requirePath(get());
-    await invoke('git_cherry_pick_abort', { path });
+    await dedupedInvoke('git_cherry_pick_abort', { path });
     await get().fetchAll();
   },
 
   merge: async (params: MergeParams) => {
     const path = requirePath(get());
-    await invoke('git_merge', {
+    await dedupedInvoke('git_merge', {
       path,
       branch: params.branch,
       strategy: null,
@@ -633,13 +719,13 @@ export const useGitStore = create<GitStore>((set, get) => ({
 
   abortMerge: async () => {
     const path = requirePath(get());
-    await invoke('git_abort_merge', { path });
+    await dedupedInvoke('git_abort_merge', { path });
     await get().fetchAll();
   },
 
   createBranch: async (params: BranchCreateParams) => {
     const path = requirePath(get());
-    await invoke('git_create_branch', {
+    await dedupedInvoke('git_create_branch', {
       path,
       name: params.name,
       refName: params.ref || null,
@@ -649,25 +735,25 @@ export const useGitStore = create<GitStore>((set, get) => ({
 
   deleteBranch: async (params: BranchDeleteParams) => {
     const path = requirePath(get());
-    await invoke('git_delete_branch', { path, name: params.name, force: params.force });
+    await dedupedInvoke('git_delete_branch', { path, name: params.name, force: params.force });
     await get().fetchBranches();
   },
 
   renameBranch: async (oldName: string, newName: string) => {
     const path = requirePath(get());
-    await invoke('git_rename_branch', { path, oldName, newName });
+    await dedupedInvoke('git_rename_branch', { path, oldName, newName });
     await get().fetchBranches();
   },
 
   setUpstream: async (branch: string, remoteBranch: string) => {
     const path = requirePath(get());
-    await invoke('git_set_upstream', { path, branch, remoteBranch });
+    await dedupedInvoke('git_set_upstream', { path, branch, remoteBranch });
     await get().fetchBranches();
   },
 
   createTag: async (params: TagCreateParams) => {
     const path = requirePath(get());
-    await invoke('git_create_tag', {
+    await dedupedInvoke('git_create_tag', {
       path,
       name: params.name,
       message: params.message || null,
@@ -678,44 +764,44 @@ export const useGitStore = create<GitStore>((set, get) => ({
 
   deleteTag: async (params: TagDeleteParams) => {
     const path = requirePath(get());
-    await invoke('git_delete_tag', { path, name: params.name });
+    await dedupedInvoke('git_delete_tag', { path, name: params.name });
     await get().fetchTags();
   },
 
   pushTag: async (name: string, remote: string) => {
     const path = requirePath(get());
-    await invoke('git_push_tag', { path, name, remote });
+    await dedupedInvoke('git_push_tag', { path, name, remote });
     await get().fetchTags();
   },
 
   addRemote: async (params: RemoteAddParams) => {
     const path = requirePath(get());
-    await invoke('git_add_remote', { path, name: params.name, url: params.url });
+    await dedupedInvoke('git_add_remote', { path, name: params.name, url: params.url });
     await get().fetchRemotes();
   },
 
   removeRemote: async (params: RemoteRemoveParams) => {
     const path = requirePath(get());
-    await invoke('git_remove_remote', { path, name: params.name });
+    await dedupedInvoke('git_remove_remote', { path, name: params.name });
     await get().fetchRemotes();
   },
 
   pruneRemote: async (name: string) => {
     const path = requirePath(get());
-    await invoke('git_prune_remote', { path, name });
+    await dedupedInvoke('git_prune_remote', { path, name });
     await get().fetchRemotes();
   },
 
   revert: async (sha: string) => {
     const path = requirePath(get());
-    await invoke('git_revert', { path, sha });
+    await dedupedInvoke('git_revert', { path, sha });
     await get().fetchAll();
   },
 
   rebase: async (onto?: string, branch?: string) => {
     const path = requirePath(get());
     const appHandle = getCurrentWebviewWindow();
-    await invoke('git_rebase', {
+    await dedupedInvoke('git_rebase', {
       path,
       onto: onto ?? null,
       branch: branch ?? null,
@@ -726,65 +812,65 @@ export const useGitStore = create<GitStore>((set, get) => ({
 
   rebaseContinue: async () => {
     const path = requirePath(get());
-    await invoke('git_rebase_continue', { path });
+    await dedupedInvoke('git_rebase_continue', { path });
     await get().fetchAll();
   },
 
   rebaseSkip: async () => {
     const path = requirePath(get());
-    await invoke('git_rebase_skip', { path });
+    await dedupedInvoke('git_rebase_skip', { path });
     await get().fetchAll();
   },
 
   rebaseAbort: async () => {
     const path = requirePath(get());
-    await invoke('git_rebase_abort', { path });
+    await dedupedInvoke('git_rebase_abort', { path });
     await get().fetchAll();
   },
 
   getConfig: async (key: string) => {
     const path = requirePath(get());
-    return await invoke('git_get_config', { path, key });
+    return await dedupedInvoke('git_get_config', { path, key });
   },
 
   setConfig: async (key: string, value: string) => {
     const path = requirePath(get());
-    await invoke('git_set_config', { path, key, value });
+    await dedupedInvoke('git_set_config', { path, key, value });
   },
 
   addWorktree: async (path: string, refName: string) => {
     const repoPath = requirePath(get());
-    await invoke('git_add_worktree', { path: repoPath, worktreePath: path, refName });
+    await dedupedInvoke('git_add_worktree', { path: repoPath, worktreePath: path, refName });
     await get().fetchWorktrees();
   },
 
   removeWorktree: async (path: string, force: boolean) => {
     const repoPath = requirePath(get());
-    await invoke('git_remove_worktree', { path: repoPath, worktreePath: path, force });
+    await dedupedInvoke('git_remove_worktree', { path: repoPath, worktreePath: path, force });
     await get().fetchWorktrees();
   },
 
   pruneWorktrees: async () => {
     const path = requirePath(get());
-    await invoke('git_prune_worktrees', { path });
+    await dedupedInvoke('git_prune_worktrees', { path });
     await get().fetchWorktrees();
   },
 
   createArchive: async (output: string, refName: string, format: string) => {
     const path = requirePath(get());
-    await invoke('git_create_archive', { path, output, refName, format });
+    await dedupedInvoke('git_create_archive', { path, output, refName, format });
   },
 
   listSubmodules: async () => {
     const path = requirePath(get());
-    const submodules = await invoke('git_list_submodules', { path });
+    const submodules = await dedupedInvoke('git_list_submodules', { path });
     // Store result if needed; for now just fetches
     console.log('Submodules:', submodules);
   },
 
   addSubmodule: async (url: string, name?: string, branch?: string) => {
     const path = requirePath(get());
-    await invoke('git_add_submodule', {
+    await dedupedInvoke('git_add_submodule', {
       path,
       url,
       name: name ?? null,
@@ -794,7 +880,7 @@ export const useGitStore = create<GitStore>((set, get) => ({
 
   updateSubmodule: async (name?: string, init?: boolean, recursive?: boolean) => {
     const path = requirePath(get());
-    await invoke('git_update_submodule', {
+    await dedupedInvoke('git_update_submodule', {
       path,
       name: name ?? null,
       init: init ?? false,
@@ -810,7 +896,7 @@ export const useGitStore = create<GitStore>((set, get) => ({
     const path = requirePath(get());
     set((s) => ({ loading: { ...s.loading, inProgress: true }, errors: { ...s.errors, inProgress: null } }));
     try {
-      const state: InProgressState = await invoke('git_get_in_progress', { path });
+      const state: InProgressState = await dedupedInvoke('git_get_in_progress', { path });
       set({ inProgress: state });
     } catch (e) {
       set((s) => ({ errors: { ...s.errors, inProgress: String(e) } }));
@@ -821,7 +907,7 @@ export const useGitStore = create<GitStore>((set, get) => ({
 
   searchCommits: async (params: SearchParams) => {
     const path = requirePath(get());
-    return await invoke('git_search_commits', {
+    return await dedupedInvoke('git_search_commits', {
       path,
       query: params.query ?? null,
       author: params.author ?? null,
@@ -832,84 +918,84 @@ export const useGitStore = create<GitStore>((set, get) => ({
 
   getMergeConflicts: async () => {
     const path = requirePath(get());
-    return await invoke('git_get_merge_conflicts', { path });
+    return await dedupedInvoke('git_get_merge_conflicts', { path });
   },
 
   assumeUnchanged: async (files: string[], enable: boolean) => {
     const path = requirePath(get());
-    await invoke('git_assume_unchanged', { path, files, enable });
+    await dedupedInvoke('git_assume_unchanged', { path, files, enable });
     await get().fetchStatus();
   },
 
   skipWorktree: async (files: string[], enable: boolean) => {
     const path = requirePath(get());
-    await invoke('git_skip_worktree', { path, files, enable });
+    await dedupedInvoke('git_skip_worktree', { path, files, enable });
     await get().fetchStatus();
   },
 
   addToGitignore: async (patterns: string[]) => {
     const path = requirePath(get());
-    await invoke('git_add_to_gitignore', { path, patterns });
+    await dedupedInvoke('git_add_to_gitignore', { path, patterns });
   },
 
   deleteFiles: async (files: string[]) => {
     const path = requirePath(get());
-    await invoke('git_delete_files', { path, files });
+    await dedupedInvoke('git_delete_files', { path, files });
     await get().fetchStatus();
   },
 
   savePatch: async (sha: string, outputDir: string) => {
     const path = requirePath(get());
-    await invoke('git_save_patch', { path, sha, outputDir });
+    await dedupedInvoke('git_save_patch', { path, sha, outputDir });
   },
 
   applyPatch: async (patchFile: string) => {
     const path = requirePath(get());
-    await invoke('git_apply_patch', { path, patchFile });
+    await dedupedInvoke('git_apply_patch', { path, patchFile });
     await get().fetchAll();
   },
 
   getFileHistory: async (file: string, limit: number) => {
     const path = requirePath(get());
-    return await invoke('git_get_file_history', { path, file, limit });
+    return await dedupedInvoke('git_get_file_history', { path, file, limit });
   },
 
   getCommitChildren: async (sha: string) => {
     const path = requirePath(get());
-    return await invoke('git_get_commit_children', { path, sha });
+    return await dedupedInvoke('git_get_commit_children', { path, sha });
   },
 
   stashShow: async (index: number) => {
     const path = requirePath(get());
-    return await invoke('git_stash_show', { path, index });
+    return await dedupedInvoke('git_stash_show', { path, index });
   },
 
   editRemote: async (name: string, newUrl: string) => {
     const path = requirePath(get());
-    await invoke('git_edit_remote', { path, name, newUrl });
+    await dedupedInvoke('git_edit_remote', { path, name, newUrl });
     await get().fetchRemotes();
   },
 
   deleteRemoteTag: async (name: string, remote: string) => {
     const path = requirePath(get());
-    await invoke('git_delete_remote_tag', { path, name, remote });
+    await dedupedInvoke('git_delete_remote_tag', { path, name, remote });
     await get().fetchTags();
   },
 
   getGitVersion: async () => {
-    return await invoke('git_get_version');
+    return await dedupedInvoke('git_get_version');
   },
 
   openInFileManager: async (path: string) => {
-    await invoke('open_in_file_manager', { path });
+    await dedupedInvoke('open_in_file_manager', { path });
   },
 
   openInTerminal: async (path: string) => {
-    await invoke('open_in_terminal', { path });
+    await dedupedInvoke('open_in_terminal', { path });
   },
 
   openInBrowser: async (url: string) => {
-    await invoke('open_in_browser', { url });
+    await dedupedInvoke('open_in_browser', { url });
   },
 
   lfsIsAvailable: async () => {
@@ -918,12 +1004,12 @@ export const useGitStore = create<GitStore>((set, get) => ({
 
   lfsTrack: async (pattern: string) => {
     const path = requirePath(get());
-    await invoke('git_lfs_track', { path, pattern });
+    await dedupedInvoke('git_lfs_track', { path, pattern });
   },
 
   lfsUntrack: async (pattern: string) => {
     const path = requirePath(get());
-    await invoke('git_lfs_untrack', { path, pattern });
+    await dedupedInvoke('git_lfs_untrack', { path, pattern });
   },
 
   lfsListTracks: async () => {
@@ -933,7 +1019,7 @@ export const useGitStore = create<GitStore>((set, get) => ({
 
   lfsFetch: async (remote?: string, include?: string, exclude?: string) => {
     const path = requirePath(get());
-    await invoke('git_lfs_fetch', {
+    await dedupedInvoke('git_lfs_fetch', {
       path,
       remote: remote ?? null,
       include: include ?? null,
@@ -943,7 +1029,7 @@ export const useGitStore = create<GitStore>((set, get) => ({
 
   lfsPull: async (remote?: string, include?: string, exclude?: string) => {
     const path = requirePath(get());
-    await invoke('git_lfs_pull', {
+    await dedupedInvoke('git_lfs_pull', {
       path,
       remote: remote ?? null,
       include: include ?? null,
@@ -953,7 +1039,7 @@ export const useGitStore = create<GitStore>((set, get) => ({
 
   lfsPush: async (remote?: string, include?: string, exclude?: string, all?: boolean) => {
     const path = requirePath(get());
-    await invoke('git_lfs_push', {
+    await dedupedInvoke('git_lfs_push', {
       path,
       remote: remote ?? null,
       include: include ?? null,
@@ -969,16 +1055,324 @@ export const useGitStore = create<GitStore>((set, get) => ({
 
   lfsLock: async (file: string) => {
     const path = requirePath(get());
-    await invoke('git_lfs_lock', { path, file });
+    await dedupedInvoke('git_lfs_lock', { path, file });
   },
 
   lfsUnlock: async (file: string, force?: boolean) => {
     const path = requirePath(get());
-    await invoke('git_lfs_unlock', { path, file, force: force ?? false });
+    await dedupedInvoke('git_lfs_unlock', { path, file, force: force ?? false });
   },
 
   lfsListLocks: async () => {
     const path = requirePath(get());
     return await invoke<LfsLock[]>('git_lfs_list_locks', { path });
+  },
+
+  // === Rebase additional ===
+
+  rebaseEditMessage: async (message: string) => {
+    const path = requirePath(get());
+    await dedupedInvoke('git_rebase_edit_message', { path, message });
+    await get().fetchAll();
+  },
+
+  startInteractiveRebase: async (onto?: string) => {
+    const path = requirePath(get());
+    const appHandle = getCurrentWebviewWindow();
+    await dedupedInvoke('git_start_interactive_rebase', {
+      path,
+      onto: onto ?? null,
+      appHandle,
+    });
+    await get().fetchAll();
+  },
+
+  startInteractiveRebaseWithTodos: async (path: string, todos: Array<{ hash: string; action: string }>) => {
+    const repoPath = requirePath(get());
+    const todoText = todos.map((t) => `${t.action} ${t.hash}`).join('\n');
+    const appHandle = getCurrentWebviewWindow();
+    await dedupedInvoke('git_start_interactive_rebase_with_todos', {
+      path: repoPath,
+      onto: path,
+      todoText,
+      appHandle,
+    });
+    await get().fetchAll();
+  },
+
+  // === Branch additional ===
+
+  queryTrackStatus: async (branch: string) => {
+    const path = requirePath(get());
+    return await dedupedInvoke('git_query_track_status', { path, branch });
+  },
+
+  // === Submodule additional ===
+
+  deinitSubmodule: async (name: string) => {
+    const path = requirePath(get());
+    await dedupedInvoke('git_deinit_submodule', { path, name });
+  },
+
+  setSubmoduleBranch: async (name: string, branch: string) => {
+    const path = requirePath(get());
+    await dedupedInvoke('git_set_submodule_branch', { path, name, branch });
+  },
+
+  changeSubmoduleUrl: async (name: string, url: string) => {
+    const path = requirePath(get());
+    await dedupedInvoke('git_change_submodule_url', { path, name, url });
+  },
+
+  // === Diff additional ===
+
+  diffRevisionFiles: async (oldRef: string, newRef: string) => {
+    const path = requirePath(get());
+    return await dedupedInvoke('git_diff_revision_files', { path, oldRef, newRef });
+  },
+
+  queryFileContent: async (refName: string, filePath: string) => {
+    const path = requirePath(get());
+    return await dedupedInvoke('git_query_file_content', { path, refName, filePath });
+  },
+
+  // === Statistics additional ===
+
+  runGc: async (aggressive?: boolean, prune?: boolean) => {
+    const path = requirePath(get());
+    return await dedupedInvoke('git_run_gc', {
+      path,
+      aggressive: aggressive ?? false,
+      prune: prune ?? false,
+    });
+  },
+
+  // === Platform additional ===
+
+  findGitExecutable: async () => {
+    return await dedupedInvoke('git_find_git_executable');
+  },
+
+  findExternalTools: async () => {
+    return await dedupedInvoke('git_find_external_tools');
+  },
+
+  // === Avatar ===
+
+  getAvatar: async (email: string, name: string) => {
+    return await dedupedInvoke<string | null>('get_avatar', { email, name });
+  },
+
+  // === Mirror ===
+
+  testMirrorLatency: async (url: string) => {
+    return await dedupedInvoke<number>('test_mirror_latency', { url });
+  },
+
+  getMirrorUrl: async (originalUrl: string, mirrorType: string) => {
+    return await dedupedInvoke('get_mirror_url', { originalUrl, mirrorType });
+  },
+
+  // === AI ===
+
+  aiGenerateCommitMessage: async (
+    diffText: string,
+    provider: string,
+    apiUrl: string,
+    apiKey: string,
+    model: string,
+    extraPrompt: string,
+  ) => {
+    const path = requirePath(get());
+    return await dedupedInvoke('ai_generate_commit_message', {
+      repoPath: path,
+      diffText,
+      provider,
+      apiUrl,
+      apiKey,
+      model,
+      extraPrompt,
+    });
+  },
+
+  aiFetchModels: async (provider: string, apiUrl: string, apiKey: string) => {
+    return await dedupedInvoke<string[]>('ai_fetch_models', { provider, apiUrl, apiKey });
+  },
+
+  // === PR ===
+
+  detectPlatform: async (remoteUrl: string) => {
+    return await dedupedInvoke('detect_platform', { remoteUrl });
+  },
+
+  createPullRequest: async (config: {
+    platform: string;
+    apiUrl: string;
+    token: string;
+    owner: string;
+    repo: string;
+    title: string;
+    body: string;
+    head: string;
+    base: string;
+  }) => {
+    return await dedupedInvoke('create_pull_request', {
+      platform: config.platform,
+      apiUrl: config.apiUrl,
+      token: config.token,
+      owner: config.owner,
+      repo: config.repo,
+      title: config.title,
+      body: config.body,
+      head: config.head,
+      base: config.base,
+    });
+  },
+
+  // === GitFlow ===
+
+  gitflowInit: async (params: {
+    master?: string;
+    develop?: string;
+    feature?: string;
+    release?: string;
+    hotfix?: string;
+    support?: string;
+    versionTagPrefix?: string;
+  }) => {
+    const path = requirePath(get());
+    const branches = {
+      master: params.master ?? 'master',
+      develop: params.develop ?? 'develop',
+      feature: params.feature ?? 'feature/',
+      release: params.release ?? 'release/',
+      hotfix: params.hotfix ?? 'hotfix/',
+      support: params.support ?? 'support/',
+      versionTagPrefix: params.versionTagPrefix ?? '',
+    };
+    await dedupedInvoke('gitflow_init', { path, branches });
+    await get().fetchBranches();
+  },
+
+  gitflowStart: async (params: { branchType: string; name: string; base?: string }) => {
+    const path = requirePath(get());
+    await dedupedInvoke('gitflow_start', {
+      path,
+      branchType: params.branchType,
+      name: params.name,
+      base: params.base ?? null,
+    });
+    await get().fetchBranches();
+  },
+
+  gitflowFinish: async (params: {
+    branchType: string;
+    name: string;
+    fetch?: boolean;
+    rebase?: boolean;
+    keepBranch?: boolean;
+    push?: boolean;
+    message?: string;
+  }) => {
+    const path = requirePath(get());
+    const options = {
+      fetch: params.fetch ?? false,
+      rebase: params.rebase ?? false,
+      keepBranch: params.keepBranch ?? false,
+      push: params.push ?? false,
+      message: params.message ?? null,
+    };
+    await dedupedInvoke('gitflow_finish', {
+      path,
+      branchType: params.branchType,
+      name: params.name,
+      options,
+    });
+    await get().fetchBranches();
+  },
+
+  gitflowList: async () => {
+    const path = requirePath(get());
+    return await dedupedInvoke('gitflow_list', { path });
+  },
+
+  // === Bisect ===
+
+  bisectStart: async (params: { bad?: string; good?: string }) => {
+    const path = requirePath(get());
+    await dedupedInvoke('git_bisect_start', {
+      path,
+      bad: params.bad ?? null,
+      good: params.good ?? null,
+    });
+  },
+
+  bisectMark: async (params: { state: string; revision?: string }) => {
+    const path = requirePath(get());
+    return await dedupedInvoke('git_bisect_mark', {
+      path,
+      state: params.state,
+      revision: params.revision ?? null,
+    });
+  },
+
+  bisectReset: async () => {
+    const path = requirePath(get());
+    await dedupedInvoke('git_bisect_reset', { path });
+    await get().fetchAll();
+  },
+
+  bisectLog: async () => {
+    const path = requirePath(get());
+    return await dedupedInvoke('git_bisect_log', { path });
+  },
+
+  bisectStatus: async () => {
+    const path = requirePath(get());
+    return await dedupedInvoke('git_bisect_status', { path });
+  },
+
+  // === Custom Action ===
+
+  executeCustomAction: async (params: { action: any; variableValues: Record<string, string> }) => {
+    const path = requirePath(get());
+    const appHandle = getCurrentWebviewWindow();
+    return await dedupedInvoke('git_execute_custom_action', {
+      path,
+      action: params.action,
+      variableValues: params.variableValues,
+      appHandle,
+    });
+  },
+
+  // === Repo Config ===
+
+  getRepoConfig: async () => {
+    const path = requirePath(get());
+    return await dedupedInvoke('git_get_repo_config', { path });
+  },
+
+  saveRepoConfig: async (config: any) => {
+    const path = requirePath(get());
+    await dedupedInvoke('git_save_repo_config', { path, config });
+  },
+
+  // === Command Log ===
+
+  getCommandLogs: async (offset?: number, limit?: number) => {
+    return await dedupedInvoke('git_get_command_logs', {
+      limit: limit ?? 100,
+      offset: offset ?? 0,
+    });
+  },
+
+  clearCommandLogs: async () => {
+    await dedupedInvoke('git_clear_command_logs');
+  },
+
+  // === App ===
+
+  getAppVersion: async () => {
+    return await dedupedInvoke('git_get_app_version');
   },
 }));

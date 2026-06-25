@@ -12,6 +12,11 @@ import {
   GitCommit,
   Plus,
   Minus,
+  EyeOff,
+  FolderOpen,
+  ExternalLink,
+  FileOutput,
+  Trash2,
 } from 'lucide-react';
 import type { StatusEntry, FileStatus, ContextMenuItem } from '@/types';
 import { parseDiff } from '@/utils/diff-parser';
@@ -70,8 +75,17 @@ export const WorkingCopy: React.FC = () => {
   const unstageHunk = useGitStore((s) => s.unstageHunk);
   const commit = useGitStore((s) => s.commit);
   const discard = useGitStore((s) => s.discard);
+  const assumeUnchanged = useGitStore((s) => s.assumeUnchanged);
+  const skipWorktree = useGitStore((s) => s.skipWorktree);
+  const addToGitignore = useGitStore((s) => s.addToGitignore);
+  const deleteFiles = useGitStore((s) => s.deleteFiles);
+  const openInFileManager = useGitStore((s) => s.openInFileManager);
+  const openInTerminal = useGitStore((s) => s.openInTerminal);
+  const savePatch = useGitStore((s) => s.savePatch);
+  const repoPath = useGitStore((s) => s.repoPath);
   const showContextMenu = useUIStore((s) => s.showContextMenu);
   const addNotification = useUIStore((s) => s.addNotification);
+  const showDialog = useUIStore((s) => s.showDialog);
   const { t } = useTranslation();
 
   // Density settings
@@ -179,34 +193,139 @@ export const WorkingCopy: React.FC = () => {
   const handleFileContextMenu = useCallback(
     (e: React.MouseEvent, entry: StatusEntry) => {
       e.preventDefault();
-      const items: ContextMenuItem[] = [
-        {
-          id: 'stage',
-          label: entry.staged ? t('workingCopy.unstage') : t('workingCopy.stage'),
-          action: () => {
-            if (entry.staged) {
+      const items: ContextMenuItem[] = [];
+
+      if (entry.staged) {
+        // Staged file context menu
+        items.push(
+          {
+            id: 'unstage',
+            label: t('workingCopy.unstage'),
+            action: () => {
               unstage({ paths: [entry.path] });
-            } else {
-              stage({ paths: [entry.path] });
-            }
+            },
           },
-        },
-        {
-          id: 'discard',
-          label: t('workingCopy.discardChanges'),
-          action: () => discard([entry.path]),
-          disabled: entry.staged,
-        },
-        { id: 'sep', label: '', separator: true },
-        {
-          id: 'copy-path',
-          label: t('workingCopy.copyFilePath'),
-          action: () => navigator.clipboard.writeText(entry.path),
-        },
-      ];
+          {
+            id: 'export-patch',
+            label: t('workingCopy.exportPatch'),
+            icon: <FileOutput size={12} />,
+            action: () => {
+              const outputDir = repoPath ?? '.';
+              savePatch('HEAD', outputDir).catch((err) => {
+                addNotification({ type: 'error', title: t('workingCopy.exportPatchFailed'), message: String(err) });
+              });
+            },
+          }
+        );
+      } else {
+        // Unstaged / untracked file context menu
+        items.push(
+          {
+            id: 'stage',
+            label: t('workingCopy.stage'),
+            action: () => {
+              stage({ paths: [entry.path] });
+            },
+          },
+          {
+            id: 'discard',
+            label: t('workingCopy.discardChanges'),
+            action: () => {
+              showDialog({
+                type: 'confirm',
+                title: t('workingCopy.discardChanges'),
+                message: t('workingCopy.discardConfirmMessage', entry.path),
+                confirmLabel: t('common.confirm'),
+                cancelLabel: t('common.cancel'),
+                onConfirm: () => discard([entry.path]),
+              });
+            },
+          },
+          { id: 'sep1', label: '', separator: true },
+          {
+            id: 'copy-path',
+            label: t('workingCopy.copyFilePath'),
+            action: () => navigator.clipboard.writeText(entry.path),
+          },
+          { id: 'sep2', label: '', separator: true },
+          {
+            id: 'assume-unchanged',
+            label: t('workingCopy.assumeUnchanged'),
+            icon: <EyeOff size={12} />,
+            action: () => {
+              assumeUnchanged([entry.path], true).catch((err) => {
+                addNotification({ type: 'error', title: t('workingCopy.assumeUnchangedFailed'), message: String(err) });
+              });
+            },
+          },
+          {
+            id: 'skip-worktree',
+            label: t('workingCopy.skipWorktree'),
+            icon: <EyeOff size={12} />,
+            action: () => {
+              skipWorktree([entry.path], true).catch((err) => {
+                addNotification({ type: 'error', title: t('workingCopy.skipWorktreeFailed'), message: String(err) });
+              });
+            },
+          },
+          {
+            id: 'add-to-gitignore',
+            label: t('workingCopy.addToGitignore'),
+            action: () => {
+              addToGitignore([entry.path]).catch((err) => {
+                addNotification({ type: 'error', title: t('workingCopy.addToGitignoreFailed'), message: String(err) });
+              });
+            },
+          },
+          { id: 'sep3', label: '', separator: true },
+          {
+            id: 'delete-file',
+            label: t('workingCopy.deleteFile'),
+            icon: <Trash2 size={12} />,
+            action: () => {
+              showDialog({
+                type: 'confirm',
+                title: t('workingCopy.deleteFile'),
+                message: t('workingCopy.deleteFileConfirm', entry.path),
+                confirmLabel: t('common.confirm'),
+                cancelLabel: t('common.cancel'),
+                onConfirm: () => {
+                  deleteFiles([entry.path]).catch((err) => {
+                    addNotification({ type: 'error', title: t('workingCopy.deleteFileFailed'), message: String(err) });
+                  });
+                },
+              });
+            },
+          },
+          { id: 'sep4', label: '', separator: true },
+          {
+            id: 'open-in-file-manager',
+            label: t('workingCopy.openInFileManager'),
+            icon: <FolderOpen size={12} />,
+            action: () => {
+              const filePath = repoPath ? `${repoPath}/${entry.path}` : entry.path;
+              openInFileManager(filePath).catch((err) => {
+                addNotification({ type: 'error', title: t('workingCopy.openInFileManagerFailed'), message: String(err) });
+              });
+            },
+          },
+          {
+            id: 'open-in-editor',
+            label: t('workingCopy.openInEditor'),
+            icon: <ExternalLink size={12} />,
+            action: () => {
+              const filePath = repoPath ? `${repoPath}/${entry.path}` : entry.path;
+              openInTerminal(filePath).catch((err) => {
+                addNotification({ type: 'error', title: t('workingCopy.openInEditorFailed'), message: String(err) });
+              });
+            },
+          }
+        );
+      }
+
       showContextMenu(e.clientX, e.clientY, items);
     },
-    [showContextMenu, stage, unstage, discard]
+    [showContextMenu, addNotification, showDialog, stage, unstage, discard, assumeUnchanged, skipWorktree, addToGitignore, deleteFiles, openInFileManager, openInTerminal, savePatch, repoPath]
   );
 
   return (
@@ -420,7 +539,7 @@ const FileEntry: React.FC<{
   onClick: () => void;
   onContextMenu: (e: React.MouseEvent) => void;
   densityStyle: { rowHeight: string; listGap: string; fontSize: string; padding: string };
-}> = ({ entry, selected, onClick, onContextMenu, densityStyle }) => (
+}> = React.memo(({ entry, selected, onClick, onContextMenu, densityStyle }) => (
   <div
     onClick={onClick}
     onContextMenu={onContextMenu}
@@ -448,4 +567,4 @@ const FileEntry: React.FC<{
     </span>
     <span className="truncate flex-1">{entry.path}</span>
   </div>
-);
+));
