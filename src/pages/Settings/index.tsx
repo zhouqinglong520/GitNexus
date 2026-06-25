@@ -83,6 +83,7 @@ const TABS: { id: SettingsTab; labelKey: string; icon: React.ReactNode }[] = [
   { id: 'security', labelKey: 'settings.security', icon: <Shield size={16} /> },
   { id: 'storage', labelKey: 'settings.storage', icon: <Database size={16} /> },
   { id: 'network', labelKey: 'settings.network', icon: <Globe size={16} /> },
+  { id: 'lfs', labelKey: 'settings.lfs', icon: <HardDrive size={16} /> },
   { id: 'command_log', labelKey: 'settings.command_log', icon: <FileText size={16} /> },
   { id: 'custom_actions', labelKey: 'settings.custom_actions', icon: <ClipboardList size={16} /> },
   { id: 'about', labelKey: 'settings.about', icon: <Info size={16} /> },

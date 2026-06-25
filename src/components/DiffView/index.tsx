@@ -785,7 +785,7 @@ export const DiffView: React.FC<DiffViewProps> = ({
   }, [files, filePath]);
 
   // Image file loading state
-  const [imageData, setImageData] = useState<Record<string, { oldImage: string | null; newImage: string | null; oldSize: number; newSize: number }>>({});
+  const [imageData, setImageData] = useState<Record<string, { oldImage: string | null; newImage: string | null; oldSize: number; newSize: number; placeholder?: boolean }>>({});
 
   // Hunk navigation state
   const [currentHunkIndex, setCurrentHunkIndex] = useState(-1);
@@ -930,12 +930,12 @@ export const DiffView: React.FC<DiffViewProps> = ({
     setSearchCurrentMatch(searchMatchCount > 0 ? 0 : -1);
   }, [searchMatchCount]);
 
-  // Load image data for image files (placeholder - actual implementation would use git_query_file_content)
+  // Load image data for image files (placeholder - binary files cannot be reliably loaded via text-based git commands)
   const loadImageData = useCallback(async (file: DiffFile) => {
     const key = `${file.old_path}-${file.new_path}`;
     setImageData((prev) => ({
       ...prev,
-      [key]: { oldImage: null, newImage: null, oldSize: 0, newSize: 0 },
+      [key]: { oldImage: null, newImage: null, oldSize: 0, newSize: 0, placeholder: true },
     }));
   }, []);
 
@@ -988,6 +988,21 @@ export const DiffView: React.FC<DiffViewProps> = ({
             const data = imageData[key] ?? { oldImage: null, newImage: null, oldSize: 0, newSize: 0 };
             return (
               <div key={`${file.new_path}-${idx}`} data-file-index={idx} className="border-b" style={{ borderColor: 'var(--border-color)' }}>
+                {data.placeholder ? (
+                  <div
+                    className="px-3 py-1.5 flex items-center justify-between border-b"
+                    style={{
+                      backgroundColor: 'var(--bg-overlay)',
+                      borderBottomColor: 'var(--border-color)',
+                      color: 'var(--text-primary)',
+                    }}
+                  >
+                    <span className="flex items-center gap-2 text-xs">
+                      <StatusBadge status={file.status} />
+                      <span>{file.new_path}</span>
+                    </span>
+                  </div>
+                ) : null}
                 <ImageDiff
                   oldImage={data.oldImage}
                   newImage={data.newImage}
@@ -995,6 +1010,14 @@ export const DiffView: React.FC<DiffViewProps> = ({
                   newSize={data.newSize}
                   filePath={file.new_path}
                 />
+                {data.placeholder && (
+                  <div
+                    className="px-4 py-3 text-xs text-center"
+                    style={{ color: 'var(--text-subtle)', backgroundColor: 'var(--bg-mantle)' }}
+                  >
+                    Image file -- please use an external tool to view differences.
+                  </div>
+                )}
               </div>
             );
           }

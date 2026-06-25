@@ -52,10 +52,12 @@ pub fn get_status(path: &str) -> Result<WorktreeStatus, GitError> {
         // Ordinary / rename / copy changes
         if line.starts_with('1') || line.starts_with('2') {
             let is_rename_or_copy = line.starts_with('2');
-            // Format: XY sub mH mI mW hH hI eN eA eD eR path
+            // Format: XY sub mH mI mW hH hI eN eA eD eR path [old_path]
+            // All fields are always present; path is the last element.
+            // For renames/copies, the format has an additional old_path field.
             let rest = &line[2..];
             let fields: Vec<&str> = rest.split_whitespace().collect();
-            if fields.len() >= 8 {
+            if fields.len() >= 12 {
                 let xy = fields[0];
                 let x = xy.chars().next().unwrap_or(' ');
                 let y = xy.chars().nth(1).unwrap_or(' ');
@@ -63,9 +65,9 @@ pub fn get_status(path: &str) -> Result<WorktreeStatus, GitError> {
                 let staged = x != '.' && x != ' ' && x != '?';
                 let status = parse_change_status(if staged { x } else { y });
 
-                let file_path = fields[7].to_string();
-                let old_path = if is_rename_or_copy && fields.len() > 8 {
-                    Some(fields[8].to_string())
+                let file_path = fields.last().unwrap().to_string();
+                let old_path = if is_rename_or_copy && fields.len() > 12 {
+                    Some(fields[fields.len() - 2].to_string())
                 } else {
                     None
                 };
@@ -81,11 +83,12 @@ pub fn get_status(path: &str) -> Result<WorktreeStatus, GitError> {
         }
 
         // Unmerged entries (u)
+        // Format: XY sub mH mI mW hH hI path
         if line.starts_with('u') {
             let rest = &line[2..];
             let fields: Vec<&str> = rest.split_whitespace().collect();
-            if fields.len() >= 7 {
-                let file_path = fields[6].to_string();
+            if !fields.is_empty() {
+                let file_path = fields.last().unwrap().to_string();
                 changes.push(Change {
                     path: file_path,
                     old_path: None,

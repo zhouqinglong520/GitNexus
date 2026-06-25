@@ -105,20 +105,19 @@ pub fn open_in_terminal(path: &str) -> Result<(), GitError> {
     } else {
         // Linux: try common terminal emulators
         let terminals = [
-            ("gnome-terminal", vec!["--", bash_path()]),
-            ("konsole", vec!["--workdir", path]),
-            ("xfce4-terminal", vec!["--working-directory", path]),
-            ("mate-terminal", vec!["--working-directory", path]),
+            ("gnome-terminal", {
+                let mut a: Vec<String> = vec!["--".to_string(), "bash".to_string(), "-c".to_string()];
+                a.push(format!("cd \"{}\" && exec {}", path, bash_path()));
+                a
+            }),
+            ("konsole", vec!["--workdir", path].iter().map(|s| s.to_string()).collect()),
+            ("xfce4-terminal", vec!["--working-directory", path].iter().map(|s| s.to_string()).collect()),
+            ("mate-terminal", vec!["--working-directory", path].iter().map(|s| s.to_string()).collect()),
         ];
 
         for (cmd, args) in &terminals {
-            let mut full_args: Vec<String> = args.iter().map(|s| s.to_string()).collect();
-            if *cmd == "gnome-terminal" {
-                full_args.push(format!("cd {} && exec {}", path, bash_path()));
-            }
-
             let result = StdCommand::new(cmd)
-                .args(&full_args)
+                .args(args)
                 .spawn()
                 .map_err(|e| GitError::ProcessError(e.to_string()));
 

@@ -18,6 +18,7 @@ import type { Locale } from '@/i18n';
 import { CheckCircle, XCircle, AlertTriangle, Info } from 'lucide-react';
 
 function AppContent() {
+  const navigate = useNavigate();
   const contextMenu = useUIStore((s) => s.contextMenu);
   const commandPaletteOpen = useUIStore((s) => s.commandPaletteOpen);
   const setCommandPaletteOpen = useUIStore((s) => s.setCommandPaletteOpen);
@@ -91,7 +92,7 @@ function AppContent() {
         category: 'Application',
         shortcut: 'Ctrl+,',
         action: () => {
-          window.location.hash = '#/settings';
+          navigate('/settings');
         },
       },
       {
@@ -159,8 +160,8 @@ function AppContent() {
         target.tagName === 'SELECT' ||
         target.isContentEditable;
 
-      // Ctrl+P or Ctrl+Shift+P to toggle command palette
-      if ((e.ctrlKey || e.metaKey) && e.key === 'p') {
+      // Ctrl+P to toggle command palette (Ctrl+Shift+P is handled separately for Push)
+      if ((e.ctrlKey || e.metaKey) && e.key === 'p' && !e.shiftKey) {
         e.preventDefault();
         toggleCommandPalette();
         return;
@@ -187,7 +188,7 @@ function AppContent() {
       // Ctrl+, -- Open settings
       if ((e.ctrlKey || e.metaKey) && e.key === ',') {
         e.preventDefault();
-        window.location.hash = '#/settings';
+        navigate('/settings');
         return;
       }
 

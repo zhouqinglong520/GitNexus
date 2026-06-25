@@ -114,7 +114,7 @@ pub fn git_diff_revisions(
     new_ref: String,
     path_filter: Option<String>,
 ) -> Result<String, String> {
-    git::diff::get_diff(&path, Some(&old_ref), Some(&new_ref), path_filter.as_deref())
+    git::diff::get_diff(&path, Some(&old_ref), Some(&new_ref), path_filter.as_deref(), None, None)
         .map_err(|e| e.to_string())
 }
 

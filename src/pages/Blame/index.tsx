@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useGitStore } from '@/stores/git-store';
 import { useUIStore } from '@/stores/ui-store';
 import { User, Clock, ExternalLink, Copy } from 'lucide-react';
@@ -135,6 +136,7 @@ const ContextMenu: React.FC<{
 };
 
 export const Blame: React.FC = () => {
+  const navigate = useNavigate();
   const blame = useGitStore((s) => s.blame);
   const blameLoading = useGitStore((s) => s.loading.blame);
   const fetchBlame = useGitStore((s) => s.fetchBlame);
@@ -221,8 +223,8 @@ export const Blame: React.FC = () => {
   const handleShaClick = useCallback((sha: string) => {
     setSelectedCommitId(sha);
     fetchCommitDetail(sha);
-    window.location.hash = '/repo?commit=' + sha;
-  }, [setSelectedCommitId, fetchCommitDetail]);
+    navigate('/repo?commit=' + sha);
+  }, [setSelectedCommitId, fetchCommitDetail, navigate]);
 
   // Copy to clipboard helper
   const copyToClipboard = useCallback((text: string) => {

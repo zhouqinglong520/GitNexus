@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo, useCallback } from 'react';
+import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { invoke } from '@tauri-apps/api/core';
 import { useGitStore } from '@/stores/git-store';
@@ -8,6 +8,7 @@ import { useTranslation } from '@/i18n';
 import { CommitGraph } from '@/components/CommitGraph';
 import { DiffView } from '@/components/DiffView';
 import { InteractiveRebase } from '@/components/InteractiveRebase';
+import type { RebaseTodoItem } from '@/components/InteractiveRebase';
 import { GitCommit, User, Clock, Copy, Check, Archive, ChevronDown, ChevronUp, RotateCcw, Edit3, GitCompare } from 'lucide-react';
 import type { Commit, CommitDetail, ContextMenuItem } from '@/types';
 import { formatRelativeTime } from '@/utils/format';
@@ -73,6 +74,7 @@ export const Histories: React.FC = () => {
   const [previewDetail, setPreviewDetail] = useState<CommitDetail | null>(null);
   const [previewDiff, setPreviewDiff] = useState<string | null>(null);
   const [previewDiffLoading, setPreviewDiffLoading] = useState(false);
+  const previewCommitRef = useRef<string | null>(null);
 
   // Helper to check if input is focused
   const isInputFocused = useCallback((e: KeyboardEvent) => {
@@ -114,13 +116,16 @@ export const Histories: React.FC = () => {
   // Fetch preview data when previewCommit changes
   useEffect(() => {
     if (previewCommit) {
+      const sha = previewCommit;
+      previewCommitRef.current = sha;
       setPreviewDiffLoading(true);
-      const commit = commits.find((c) => c.sha === previewCommit);
+      const commit = commits.find((c) => c.sha === sha);
       if (commit) {
         fetchDiff({ commit1: commit.sha + '^', commit2: commit.sha });
         fetchCommitDetail(commit.sha);
       }
     } else {
+      previewCommitRef.current = null;
       setPreviewDiff(null);
       setPreviewDetail(null);
     }
@@ -128,7 +133,7 @@ export const Histories: React.FC = () => {
 
   // Sync preview data from store when diff/commitDetail change
   useEffect(() => {
-    if (previewCommit) {
+    if (previewCommit && previewCommitRef.current === previewCommit) {
       setPreviewDiff(diff);
       setPreviewDetail(commitDetail);
       setPreviewDiffLoading(diffLoading || commitDetailLoading);
@@ -194,15 +199,16 @@ export const Histories: React.FC = () => {
   );
 
   const handleStartRebase = useCallback(
-    async (baseSha: string, todoText: string) => {
+    async (baseSha: string, rebaseTodos: RebaseTodoItem[]) => {
       setRebaseDialogOpen(false);
       try {
         const repoPath = useGitStore.getState().repoPath;
         if (!repoPath) return;
+        const todos = rebaseTodos.map(item => ({ hash: item.hash, action: item.action }));
         await invoke('git_start_interactive_rebase_with_todos', {
           path: repoPath,
           onto: baseSha,
-          todoText,
+          todos,
         });
         addNotification({ type: 'success', title: t('interactiveRebase.success') });
         // Refresh data
@@ -402,8 +408,7 @@ export const Histories: React.FC = () => {
           label: t('histories.compareWithHead'),
           icon: <GitCompare size={12} />,
           action: () => {
-            fetchDiff({ commit1: commit.sha, commit2: 'HEAD' });
-            navigate('/compare');
+            navigate(`/compare?old=${commit.sha}&new=HEAD`);
           },
         },
       ];

@@ -1,5 +1,5 @@
-import React, { useState, useMemo, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useMemo, useCallback, useEffect } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useGitStore } from '@/stores/git-store';
 import { useUIStore } from '@/stores/ui-store';
 import { DiffView } from '@/components/DiffView';
@@ -8,6 +8,7 @@ import { ArrowLeftRight, GitCompare, Loader2, FilePlus, FileEdit, FileMinus, Plu
 
 export const Compare: React.FC = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const branches = useGitStore((s) => s.branches);
   const tags = useGitStore((s) => s.tags);
   const diff = useGitStore((s) => s.diff);
@@ -19,6 +20,21 @@ export const Compare: React.FC = () => {
   const [oldRef, setOldRef] = useState('');
   const [newRef, setNewRef] = useState('');
   const [hasCompared, setHasCompared] = useState(false);
+
+  // Read initial refs from URL search params
+  useEffect(() => {
+    const oldParam = searchParams.get('old');
+    const newParam = searchParams.get('new');
+    if (oldParam) setOldRef(oldParam);
+    if (newParam) setNewRef(newParam);
+    if (oldParam && newParam) {
+      fetchDiff({ commit1: oldParam, commit2: newParam })
+        .then(() => setHasCompared(true))
+        .catch((err) => {
+          addNotification({ type: 'error', title: 'Failed to compare', message: String(err) });
+        });
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Build revision options from branches and tags
   const revisions = useMemo(() => {

@@ -122,10 +122,10 @@ pub async fn get_statistics(path: &str, since: Option<&str>) -> Result<Repositor
                         if let Some(rest) = line.strip_prefix(" ") {
                             let parts: Vec<&str> = rest.split(", ").collect();
                             for part in parts {
-                                if let Some(num_str) = part.strip_suffix(" insertion(s)") {
-                                    if let Some(n) = num_str.trim_start().parse::<u64>().ok() {
-                                        total += n;
-                                    }
+                                if part.contains("insertion") {
+                                    total += part.split_whitespace().next()
+                                        .and_then(|s| s.parse::<u64>().ok())
+                                        .unwrap_or(0);
                                 }
                             }
                         }
@@ -147,10 +147,10 @@ pub async fn get_statistics(path: &str, since: Option<&str>) -> Result<Repositor
                         if let Some(rest) = line.strip_prefix(" ") {
                             let parts: Vec<&str> = rest.split(", ").collect();
                             for part in parts {
-                                if let Some(num_str) = part.strip_suffix(" deletion(s)") {
-                                    if let Some(n) = num_str.trim_start().parse::<u64>().ok() {
-                                        total += n;
-                                    }
+                                if part.contains("deletion") {
+                                    total += part.split_whitespace().next()
+                                        .and_then(|s| s.parse::<u64>().ok())
+                                        .unwrap_or(0);
                                 }
                             }
                         }

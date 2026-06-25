@@ -120,14 +120,22 @@ where
 {
     // Build a shell command that writes our custom todo content into the file
     // that git provides via $1 argument to GIT_SEQUENCE_EDITOR.
-    // We use `cp /dev/stdin "$1"` piped with our content, or simpler: `printf '...' > "$1"`
     // To avoid shell injection, we write the todo text to a temp file first,
-    // then use `cp` to overwrite the git todo file.
+    // then copy it to overwrite the git todo file.
+    // Use a unique filename based on nanosecond timestamp to avoid race conditions
+    // when multiple rebase operations run concurrently.
     let temp_dir = std::env::temp_dir();
-    let temp_file = temp_dir.join("git-rebase-todo-custom");
+    let unique_id = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_nanos();
+    let temp_file = temp_dir.join(format!("git-rebase-todo-{}", unique_id));
     std::fs::write(&temp_file, todo_text)
         .map_err(|e| GitError::ProcessError(format!("Failed to write temp todo file: {}", e)))?;
 
+    #[cfg(target_os = "windows")]
+    let editor_script = format!("cmd /C copy \"{}\" \"%1\"", temp_file.display());
+    #[cfg(not(target_os = "windows"))]
     let editor_script = format!("cp {} \"$1\"", temp_file.display());
 
     let mut cmd = tokio::process::Command::new("git");

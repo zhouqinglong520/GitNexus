@@ -40,18 +40,11 @@ fn is_github_noreply_email(email: &str) -> bool {
     email.ends_with("@users.noreply.github.com")
 }
 
-/// 计算字符串的简单哈希值（用于 Gravatar URL 参数）
-///
-/// 这里不实现完整 MD5，而是使用邮箱的小写形式直接拼接到 Gravatar URL 中。
-/// Gravatar 本身支持使用邮箱明文（经过 URL 编码），但标准做法是 MD5。
-/// 由于项目没有 md5 依赖，我们用一个简单的确定性哈希替代。
-fn simple_hash(input: &str) -> String {
-    // DJB2 哈希算法，简单高效
-    let mut hash: u32 = 5381;
-    for byte in input.bytes() {
-        hash = hash.wrapping_mul(33).wrapping_add(byte as u32);
-    }
-    format!("{:08x}", hash)
+/// 计算邮箱的 MD5 哈希值（用于 Gravatar URL）
+fn md5_hash(input: &str) -> String {
+    use md5::{Md5, Digest};
+    let hash = Md5::digest(input.as_bytes());
+    format!("{:x}", hash)
 }
 
 /// 根据邮箱和用户名获取头像 URL
@@ -73,9 +66,9 @@ pub fn get_avatar_url(email: &str, _name: &str) -> Option<String> {
         }
     }
 
-    // 使用 Gravatar，用简单哈希代替 MD5
+    // 使用 Gravatar，用 MD5 哈希
     let email_lower = email.to_lowercase();
-    let hash = simple_hash(&email_lower);
+    let hash = md5_hash(&email_lower);
     Some(format!(
         "https://gravatar.com/avatar/{}?s=128&d=identicon",
         hash
@@ -149,8 +142,8 @@ mod tests {
     }
 
     #[test]
-    fn test_simple_hash_deterministic() {
-        assert_eq!(simple_hash("test@example.com"), simple_hash("test@example.com"));
-        assert_ne!(simple_hash("a@example.com"), simple_hash("b@example.com"));
+    fn test_md5_hash_deterministic() {
+        assert_eq!(md5_hash("test@example.com"), md5_hash("test@example.com"));
+        assert_ne!(md5_hash("a@example.com"), md5_hash("b@example.com"));
     }
 }

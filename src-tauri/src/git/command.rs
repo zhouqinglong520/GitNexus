@@ -178,15 +178,32 @@ impl GitCommand {
             .stdout(Stdio::piped())
             .stderr(Stdio::piped());
 
+        let start = std::time::Instant::now();
+
         let result = timeout(Duration::from_secs(60), cmd.output()).await;
         match result {
             Ok(Ok(output)) => {
+                let elapsed = start.elapsed().as_millis() as u64;
+                let exit_code = output.status.code().unwrap_or(-1);
+                let stdout_str = String::from_utf8_lossy(&output.stdout).to_string();
+                let stderr_str = String::from_utf8_lossy(&output.stderr).to_string();
+
+                // Record command log
+                let entry = crate::git::command_log::create_log_entry(
+                    "git",
+                    args,
+                    &self.repo_path,
+                    exit_code,
+                    elapsed,
+                    &stdout_str,
+                    &stderr_str,
+                );
+                crate::git::command_log::log_command(entry);
+
                 if output.status.success() {
-                    Ok(String::from_utf8_lossy(&output.stdout).to_string())
+                    Ok(stdout_str)
                 } else {
-                    Err(GitError::CommandError(
-                        String::from_utf8_lossy(&output.stderr).to_string(),
-                    ))
+                    Err(GitError::CommandError(stderr_str))
                 }
             }
             Ok(Err(e)) => Err(GitError::ProcessError(e.to_string())),

@@ -310,13 +310,13 @@ export const WorkingCopy: React.FC = () => {
             },
           },
           {
-            id: 'open-in-editor',
-            label: t('workingCopy.openInEditor'),
+            id: 'open-in-terminal',
+            label: t('workingCopy.openInTerminal'),
             icon: <ExternalLink size={12} />,
             action: () => {
               const filePath = repoPath ? `${repoPath}/${entry.path}` : entry.path;
               openInTerminal(filePath).catch((err) => {
-                addNotification({ type: 'error', title: t('workingCopy.openInEditorFailed'), message: String(err) });
+                addNotification({ type: 'error', title: t('workingCopy.openInTerminalFailed'), message: String(err) });
               });
             },
           }

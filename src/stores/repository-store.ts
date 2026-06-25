@@ -59,13 +59,14 @@ export const useRepositoryStore = create<RepositoryStore>((set, get) => ({
   },
 
   closeRepo: (path: string) => {
+    const wasActive = get().activeRepo === path;
     set((s) => ({
       repos: s.repos.filter((r) => r.path !== path),
       tabs: s.tabs.filter((t) => t.repoPath !== path),
       activeRepo: s.activeRepo === path ? (s.repos[0]?.path ?? null) : s.activeRepo,
     }));
     // Clear git store if closing the active repo
-    if (get().activeRepo === path) {
+    if (wasActive) {
       useGitStore.getState().setRepoPath(null);
     }
   },

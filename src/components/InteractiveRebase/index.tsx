@@ -23,7 +23,7 @@ interface InteractiveRebaseProps {
    *  The rebase will be `git rebase -i <baseSha>`.
    *  If not provided, the parent of the last commit in the list is used. */
   baseSha: string;
-  onStart: (baseSha: string, todoText: string) => void;
+  onStart: (baseSha: string, todos: RebaseTodoItem[]) => void;
   onCancel: () => void;
 }
 
@@ -102,8 +102,8 @@ export const InteractiveRebase: React.FC<InteractiveRebaseProps> = ({
 
   // ---- Start rebase ----
   const handleStart = useCallback(() => {
-    onStart(baseSha, todoText);
-  }, [baseSha, todoText, onStart]);
+    onStart(baseSha, items);
+  }, [baseSha, items, onStart]);
 
   // ---- Reset to original ----
   const handleReset = useCallback(() => {
