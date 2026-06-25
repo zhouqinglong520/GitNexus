@@ -19,6 +19,7 @@ export const Repository: React.FC = () => {
   const tabs = useRepositoryStore((s) => s.tabs);
   const closeTab = useRepositoryStore((s) => s.closeTab);
   const setActiveTab = useRepositoryStore((s) => s.setActiveTab);
+  const reorderTabs = useRepositoryStore((s) => s.reorderTabs);
   const operations = useUIStore((s) => s.operations);
   const fetchAll = useGitStore((s) => s.fetchAll);
   const openInFileManager = useGitStore((s) => s.openInFileManager);
@@ -29,6 +30,8 @@ export const Repository: React.FC = () => {
   useGitWatcher(activeRepo);
 
   const [activeTabType, setActiveTabType] = useState<TabType>('histories');
+  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
+  const [dragSourceIndex, setDragSourceIndex] = useState<number | null>(null);
 
   useEffect(() => {
     if (!activeRepo) {
@@ -113,6 +116,38 @@ export const Repository: React.FC = () => {
     [tabs, closeTab, showContextMenu, t, openInFileManager]
   );
 
+  // Tab drag handlers
+  const handleDragStart = useCallback((e: React.DragEvent, index: number) => {
+    setDragSourceIndex(index);
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', String(index));
+  }, []);
+
+  const handleDragOver = useCallback((e: React.DragEvent, index: number) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    setDragOverIndex(index);
+  }, []);
+
+  const handleDragLeave = useCallback(() => {
+    setDragOverIndex(null);
+  }, []);
+
+  const handleDrop = useCallback((e: React.DragEvent, toIndex: number) => {
+    e.preventDefault();
+    setDragOverIndex(null);
+    const fromIndex = dragSourceIndex;
+    if (fromIndex !== null && fromIndex !== toIndex) {
+      reorderTabs(fromIndex, toIndex);
+    }
+    setDragSourceIndex(null);
+  }, [dragSourceIndex, reorderTabs]);
+
+  const handleDragEnd = useCallback(() => {
+    setDragSourceIndex(null);
+    setDragOverIndex(null);
+  }, []);
+
   return (
     <div className="flex h-full">
       {/* Sidebar */}
@@ -127,17 +162,25 @@ export const Repository: React.FC = () => {
         >
           {/* Repo tabs */}
           <div className="flex flex-1 overflow-x-auto">
-            {tabs.map((tab) => (
+            {tabs.map((tab, index) => (
               <div
                 key={tab.id}
+                draggable
                 onClick={() => setActiveTab(tab.id)}
                 onContextMenu={(e) => handleTabContextMenu(e, tab.id)}
+                onDragStart={(e) => handleDragStart(e, index)}
+                onDragOver={(e) => handleDragOver(e, index)}
+                onDragLeave={handleDragLeave}
+                onDrop={(e) => handleDrop(e, index)}
+                onDragEnd={handleDragEnd}
                 className="flex items-center gap-2 px-3 py-2 text-xs cursor-pointer transition-colors border-r"
                 style={{
                   backgroundColor: tab.repoPath === activeRepo ? 'var(--bg-base)' : 'var(--bg-surface)',
                   borderColor: 'var(--border-color)',
                   color: tab.repoPath === activeRepo ? 'var(--text-primary)' : 'var(--text-subtle)',
                   borderBottom: tab.repoPath === activeRepo ? '2px solid var(--accent-blue)' : '2px solid transparent',
+                  opacity: dragSourceIndex === index ? 0.5 : 1,
+                  borderLeft: dragOverIndex === index && dragSourceIndex !== index ? '2px solid var(--accent-blue)' : undefined,
                 }}
               >
                 <span className="truncate max-w-32">{tab.label}</span>

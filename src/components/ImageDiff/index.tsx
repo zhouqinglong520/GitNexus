@@ -1,13 +1,13 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { useTranslation } from '@/i18n';
-import { Columns2, SplitSquareHorizontal } from 'lucide-react';
+import { Columns2, SplitSquareHorizontal, Blend } from 'lucide-react';
 
 interface ImageDiffProps {
   oldImage: string | null; // base64 or URL
   newImage: string | null;
   oldSize: number;
   newSize: number;
-  mode?: 'side-by-side' | 'slider';
+  mode?: 'side-by-side' | 'slider' | 'blend';
   filePath?: string;
 }
 
@@ -229,6 +229,101 @@ const SliderView: React.FC<{
   );
 };
 
+/** Blend image diff: overlay two images with adjustable blend ratio */
+const BlendView: React.FC<{
+  oldImage: string | null;
+  newImage: string | null;
+  oldSize: number;
+  newSize: number;
+}> = ({ oldImage, newImage, oldSize, newSize }) => {
+  const { t } = useTranslation();
+  const [blendRatio, setBlendRatio] = useState(50); // 0 = old only, 100 = new only
+
+  return (
+    <div className="flex flex-col p-4">
+      {/* Image comparison area */}
+      <div
+        className="relative overflow-hidden"
+        style={{ backgroundColor: 'var(--bg-mantle)', borderRadius: 8, minHeight: 200 }}
+      >
+        {/* Old image (bottom layer) */}
+        {oldImage && (
+          <img
+            src={oldImage}
+            alt="Old"
+            style={{ width: '100%', height: 'auto', display: 'block', objectFit: 'contain', maxHeight: 400 }}
+            draggable={false}
+          />
+        )}
+
+        {/* New image (top layer, with opacity) */}
+        {newImage && (
+          <div
+            style={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              width: '100%',
+              height: '100%',
+              opacity: blendRatio / 100,
+              mixBlendMode: 'normal',
+            }}
+          >
+            <img
+              src={newImage}
+              alt="New"
+              style={{ width: '100%', height: '100%', objectFit: 'contain', maxHeight: 400 }}
+              draggable={false}
+            />
+          </div>
+        )}
+
+        {/* Labels */}
+        <div
+          className="absolute top-2 left-2 text-xs font-medium px-2 py-0.5 rounded"
+          style={{ color: 'var(--accent-red)', backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 5 }}
+        >
+          {t('imageDiff.old')}
+        </div>
+        <div
+          className="absolute top-2 right-2 text-xs font-medium px-2 py-0.5 rounded"
+          style={{ color: 'var(--accent-green)', backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 5 }}
+        >
+          {t('imageDiff.new')}
+        </div>
+      </div>
+
+      {/* Blend ratio slider */}
+      <div className="flex items-center gap-3 mt-3">
+        <span className="text-xs" style={{ color: 'var(--accent-red)' }}>
+          {t('imageDiff.old')}
+        </span>
+        <input
+          type="range"
+          min={0}
+          max={100}
+          value={blendRatio}
+          onChange={(e) => setBlendRatio(Number(e.target.value))}
+          className="flex-1"
+          style={{ accentColor: 'var(--accent-blue)' }}
+        />
+        <span className="text-xs" style={{ color: 'var(--accent-green)' }}>
+          {t('imageDiff.new')}
+        </span>
+        <span className="text-xs font-mono" style={{ color: 'var(--text-subtle)', minWidth: 36, textAlign: 'right' }}>
+          {blendRatio}%
+        </span>
+      </div>
+
+      {/* Size info */}
+      <div className="flex justify-between mt-2 text-xs" style={{ color: 'var(--text-subtle)' }}>
+        <span>{t('imageDiff.old')}: {formatBytes(oldSize)}</span>
+        <span>{t('imageDiff.new')}: {formatBytes(newSize)}</span>
+      </div>
+    </div>
+  );
+};
+
 export const ImageDiff: React.FC<ImageDiffProps> = ({
   oldImage,
   newImage,
@@ -238,7 +333,7 @@ export const ImageDiff: React.FC<ImageDiffProps> = ({
   filePath,
 }) => {
   const { t } = useTranslation();
-  const [currentMode, setCurrentMode] = useState<'side-by-side' | 'slider'>(mode);
+  const [currentMode, setCurrentMode] = useState<'side-by-side' | 'slider' | 'blend'>(mode);
 
   return (
     <div>
@@ -280,14 +375,27 @@ export const ImageDiff: React.FC<ImageDiffProps> = ({
           >
             <SplitSquareHorizontal size={14} />
           </button>
+          <button
+            onClick={() => setCurrentMode('blend')}
+            className="p-1 rounded transition-colors"
+            style={{
+              backgroundColor: currentMode === 'blend' ? 'var(--accent-blue)' : 'transparent',
+              color: currentMode === 'blend' ? 'var(--bg-base)' : 'var(--text-subtle)',
+            }}
+            title={t('imageDiff.blend')}
+          >
+            <Blend size={14} />
+          </button>
         </div>
       </div>
 
       {/* Image content */}
       {currentMode === 'side-by-side' ? (
         <SideBySideView oldImage={oldImage} newImage={newImage} oldSize={oldSize} newSize={newSize} />
-      ) : (
+      ) : currentMode === 'slider' ? (
         <SliderView oldImage={oldImage} newImage={newImage} oldSize={oldSize} newSize={newSize} />
+      ) : (
+        <BlendView oldImage={oldImage} newImage={newImage} oldSize={oldSize} newSize={newSize} />
       )}
     </div>
   );

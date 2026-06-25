@@ -414,6 +414,30 @@ const en: Record<string, string> = {
   'statistics.otherStatistics': 'Other Statistics',
   'statistics.noStatisticsAvailable': 'No statistics available',
   'statistics.failedToLoadStatistics': 'Failed to load statistics',
+
+  // Statistics - Line changes trend
+  'statistics.lineChangesTrend': 'Line Changes Trend',
+  'statistics.monthlyCommitDistribution': 'Monthly Commit Distribution',
+  'statistics.insertions': 'Insertions',
+  'statistics.deletions': 'Deletions',
+
+  // Statistics - Activity heatmap
+  'statistics.activityHeatmap': 'Activity Heatmap',
+  'statistics.heatmapNote': 'Showing activity for the latest 200 commits',
+  'statistics.commitsOnDay': '{0} commits',
+  'statistics.noCommits': 'No commits',
+
+  // ImageDiff - Blend mode
+  'imageDiff.blend': 'Blend',
+  'imageDiff.blendRatio': 'Blend ratio',
+
+  // WorkingCopy - AI commit
+  'workingCopy.aiGenerateCommit': 'AI generate commit message',
+  'workingCopy.aiGenerating': 'AI generating...',
+  'workingCopy.aiGenerateSuccess': 'AI generated successfully',
+  'workingCopy.aiGenerateFailed': 'AI generation failed',
+  'workingCopy.aiNotConfigured': 'Please configure AI service in settings first',
+  'workingCopy.noStagedChanges': 'No staged changes to generate commit message',
 };
 
 export default en;

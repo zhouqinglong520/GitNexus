@@ -16,6 +16,7 @@ interface RepositoryStore {
   addTab: (tab: Omit<Tab, 'id'>) => void;
   closeTab: (tabId: string) => void;
   setActiveTab: (tabId: string) => void;
+  reorderTabs: (fromIndex: number, toIndex: number) => void;
   loadRecentRepos: () => Promise<void>;
   addRecentRepo: (path: string) => void;
   removeRecentRepo: (path: string) => void;
@@ -100,6 +101,15 @@ export const useRepositoryStore = create<RepositoryStore>((set, get) => ({
       set({ activeRepo: tab.repoPath });
       useGitStore.getState().setRepoPath(tab.repoPath);
     }
+  },
+
+  reorderTabs: (fromIndex: number, toIndex: number) => {
+    set((s) => {
+      const newTabs = [...s.tabs];
+      const [moved] = newTabs.splice(fromIndex, 1);
+      newTabs.splice(toIndex, 0, moved);
+      return { tabs: newTabs };
+    });
   },
 
   loadRecentRepos: async () => {

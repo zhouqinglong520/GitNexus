@@ -414,6 +414,30 @@ const zhCN: Record<string, string> = {
   'statistics.otherStatistics': '其他统计',
   'statistics.noStatisticsAvailable': '暂无统计数据',
   'statistics.failedToLoadStatistics': '加载统计数据失败',
+
+  // Statistics - Line changes trend
+  'statistics.lineChangesTrend': '代码行数变化趋势',
+  'statistics.monthlyCommitDistribution': '每月提交分布',
+  'statistics.insertions': '新增',
+  'statistics.deletions': '删除',
+
+  // Statistics - Activity heatmap
+  'statistics.activityHeatmap': '活跃度热力图',
+  'statistics.heatmapNote': '显示最近 200 条提交的活跃度',
+  'statistics.commitsOnDay': '{0} 次提交',
+  'statistics.noCommits': '无提交',
+
+  // ImageDiff - Blend mode
+  'imageDiff.blend': '混合对比',
+  'imageDiff.blendRatio': '混合比例',
+
+  // WorkingCopy - AI commit
+  'workingCopy.aiGenerateCommit': 'AI 生成提交消息',
+  'workingCopy.aiGenerating': 'AI 生成中...',
+  'workingCopy.aiGenerateSuccess': 'AI 生成成功',
+  'workingCopy.aiGenerateFailed': 'AI 生成失败',
+  'workingCopy.aiNotConfigured': '请先在设置中配置 AI 服务',
+  'workingCopy.noStagedChanges': '没有已暂存的变更可生成提交消息',
 };
 
 export default zhCN;

@@ -1,5 +1,6 @@
 import React, { useMemo, useCallback, useState, useEffect, useRef } from 'react';
 import { Plus, Minus, ChevronUp, ChevronDown, Search, X } from 'lucide-react';
+import { useGitStore } from '@/stores/git-store';
 import type { DiffFile, DiffHunk, DiffLine } from '@/types';
 import { ImageDiff, isImageFile } from '@/components/ImageDiff';
 
@@ -930,14 +931,61 @@ export const DiffView: React.FC<DiffViewProps> = ({
     setSearchCurrentMatch(searchMatchCount > 0 ? 0 : -1);
   }, [searchMatchCount]);
 
-  // Load image data for image files (placeholder - binary files cannot be reliably loaded via text-based git commands)
+  // Load image data for image files using Tauri asset protocol
+  const repoPath = useGitStore((s) => s.repoPath);
+
   const loadImageData = useCallback(async (file: DiffFile) => {
     const key = `${file.old_path}-${file.new_path}`;
-    setImageData((prev) => ({
-      ...prev,
-      [key]: { oldImage: null, newImage: null, oldSize: 0, newSize: 0, placeholder: true },
-    }));
-  }, []);
+    const filePath = file.new_path || file.old_path;
+    if (!filePath || !isImageFile(filePath) || !repoPath) {
+      setImageData((prev) => ({
+        ...prev,
+        [key]: { oldImage: null, newImage: null, oldSize: 0, newSize: 0, placeholder: true },
+      }));
+      return;
+    }
+
+    try {
+      let oldImage: string | null = null;
+      let newImage: string | null = null;
+      let oldSize = 0;
+      let newSize = 0;
+
+      // Use Tauri asset protocol to load the working tree version
+      try {
+        const { convertFileSrc } = await import('@tauri-apps/api/core');
+        const fullPath = `${repoPath}/${filePath}`;
+        newImage = convertFileSrc(fullPath);
+        // We cannot easily get file size via asset protocol, leave it as 0
+        newSize = 0;
+      } catch {
+        // Asset protocol not available, try alternative approach
+      }
+
+      // Try to load the old (HEAD) version for SVG files via git query
+      try {
+        const oldContent = await useGitStore.getState().queryFileContent('HEAD', filePath);
+        if (oldContent) {
+          if (filePath.toLowerCase().endsWith('.svg')) {
+            oldImage = `data:image/svg+xml;base64,${btoa(unescape(encodeURIComponent(oldContent)))}`;
+            oldSize = oldContent.length;
+          }
+        }
+      } catch {
+        // HEAD version might not exist (e.g., new file)
+      }
+
+      setImageData((prev) => ({
+        ...prev,
+        [key]: { oldImage, newImage, oldSize, newSize, placeholder: false },
+      }));
+    } catch {
+      setImageData((prev) => ({
+        ...prev,
+        [key]: { oldImage: null, newImage: null, oldSize: 0, newSize: 0, placeholder: true },
+      }));
+    }
+  }, [repoPath]);
 
   // Load image data for image files when they appear
   useEffect(() => {

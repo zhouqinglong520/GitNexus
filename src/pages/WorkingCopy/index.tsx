@@ -17,6 +17,8 @@ import {
   ExternalLink,
   FileOutput,
   Trash2,
+  Bot,
+  Loader2,
 } from 'lucide-react';
 import type { StatusEntry, FileStatus, ContextMenuItem } from '@/types';
 import { parseDiff } from '@/utils/diff-parser';
@@ -83,9 +85,11 @@ export const WorkingCopy: React.FC = () => {
   const openInTerminal = useGitStore((s) => s.openInTerminal);
   const savePatch = useGitStore((s) => s.savePatch);
   const repoPath = useGitStore((s) => s.repoPath);
+  const aiGenerateCommitMessage = useGitStore((s) => s.aiGenerateCommitMessage);
   const showContextMenu = useUIStore((s) => s.showContextMenu);
   const addNotification = useUIStore((s) => s.addNotification);
   const showDialog = useUIStore((s) => s.showDialog);
+  const aiPreferences = usePreferencesStore((s) => s.preferences.ai);
   const { t } = useTranslation();
 
   // Density settings
@@ -97,6 +101,7 @@ export const WorkingCopy: React.FC = () => {
   const [commitMessage, setCommitMessage] = useState('');
   const [showStaged, setShowStaged] = useState(true);
   const [showUnstaged, setShowUnstaged] = useState(true);
+  const [aiStatus, setAiStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
 
   const parsedDiffFiles = useMemo(() => {
     if (!diff) return [];
@@ -171,6 +176,50 @@ export const WorkingCopy: React.FC = () => {
       addNotification({ type: 'error', title: 'Commit failed', message: String(error) });
     }
   }, [commitMessage, commit, addNotification]);
+
+  const handleAiGenerate = useCallback(async () => {
+    // Check if AI service is configured
+    if (!aiPreferences.api_key) {
+      addNotification({ type: 'warning', title: t('workingCopy.aiNotConfigured') });
+      return;
+    }
+
+    // Check if there are staged changes
+    if (staged.length === 0) {
+      addNotification({ type: 'warning', title: t('workingCopy.noStagedChanges') });
+      return;
+    }
+
+    setAiStatus('loading');
+    try {
+      // Fetch staged diff
+      await fetchDiffStaged();
+      const currentDiff = useGitStore.getState().diff;
+      if (!currentDiff) {
+        addNotification({ type: 'error', title: t('workingCopy.aiGenerateFailed'), message: 'No diff available' });
+        setAiStatus('error');
+        return;
+      }
+
+      const message = await aiGenerateCommitMessage(
+        currentDiff,
+        aiPreferences.provider,
+        aiPreferences.api_url,
+        aiPreferences.api_key,
+        aiPreferences.model_name,
+        aiPreferences.extra_prompt,
+      );
+
+      setCommitMessage(message);
+      setAiStatus('success');
+      addNotification({ type: 'success', title: t('workingCopy.aiGenerateSuccess') });
+    } catch (error) {
+      addNotification({ type: 'error', title: t('workingCopy.aiGenerateFailed'), message: String(error) });
+      setAiStatus('error');
+    } finally {
+      setTimeout(() => setAiStatus('idle'), 2000);
+    }
+  }, [aiPreferences, staged.length, addNotification, fetchDiffStaged, aiGenerateCommitMessage, t]);
 
   const handleStageHunk = useCallback(
     (file: string, patch: string) => {
@@ -489,12 +538,13 @@ export const WorkingCopy: React.FC = () => {
           style={{ borderColor: 'var(--border-color)', backgroundColor: 'var(--bg-surface)' }}
         >
           {/* Commit message editor */}
+        <div className="relative">
           <textarea
             value={commitMessage}
             onChange={(e) => setCommitMessage(e.target.value)}
             placeholder={t('workingCopy.commitMessage')}
             rows={3}
-            className="w-full px-3 py-2 text-sm resize-none border-none outline-none"
+            className="w-full px-3 py-2 pr-10 text-sm resize-none border-none outline-none"
             style={{
               backgroundColor: 'var(--bg-surface)',
               color: 'var(--text-primary)',
@@ -507,6 +557,30 @@ export const WorkingCopy: React.FC = () => {
               }
             }}
           />
+          {/* AI generate button */}
+          <button
+            onClick={handleAiGenerate}
+            disabled={aiStatus === 'loading'}
+            className="absolute right-2 bottom-2 p-1.5 rounded transition-colors"
+            style={{
+              color: aiStatus === 'loading'
+                ? 'var(--accent-blue)'
+                : aiStatus === 'success'
+                  ? 'var(--accent-green)'
+                  : aiStatus === 'error'
+                    ? 'var(--accent-red)'
+                    : 'var(--text-subtle)',
+              backgroundColor: aiStatus !== 'idle' ? 'rgba(137, 180, 250, 0.1)' : 'transparent',
+            }}
+            title={t('workingCopy.aiGenerateCommit')}
+          >
+            {aiStatus === 'loading' ? (
+              <Loader2 size={14} className="animate-spin" />
+            ) : (
+              <Bot size={14} />
+            )}
+          </button>
+        </div>
 
           {/* Commit actions */}
           <div className="flex items-center justify-between px-3 py-2">
