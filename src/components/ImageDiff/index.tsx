@@ -1,6 +1,6 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { useTranslation } from '@/i18n';
-import { Columns2, SplitSquareHorizontal, Blend } from 'lucide-react';
+import { Columns2, SquareSplitHorizontal, Blend } from 'lucide-react';
 
 interface ImageDiffProps {
   oldImage: string | null; // base64 or URL
@@ -373,7 +373,7 @@ export const ImageDiff: React.FC<ImageDiffProps> = ({
             }}
             title={t('imageDiff.slider')}
           >
-            <SplitSquareHorizontal size={14} />
+            <SquareSplitHorizontal size={14} />
           </button>
           <button
             onClick={() => setCurrentMode('blend')}

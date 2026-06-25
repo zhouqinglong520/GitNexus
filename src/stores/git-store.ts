@@ -425,11 +425,11 @@ export const useGitStore = create<GitStore>((set, get) => ({
     try {
       const diff: string = await dedupedInvoke('git_get_diff', {
         path,
-        oldRef: params.commit1 ?? null,
-        newRef: params.commit2 ?? null,
-        pathFilter: params.path ?? null,
-        ignoreWhitespace: params.ignoreWhitespace ?? null,
-        contextLines: params.contextLines ?? null,
+        old_ref: params.commit1 ?? null,
+        new_ref: params.commit2 ?? null,
+        path_filter: params.path ?? null,
+        ignore_whitespace: params.ignoreWhitespace ?? null,
+        context_lines: params.contextLines ?? null,
       });
       set({ diff });
     } catch (e) {
@@ -473,8 +473,8 @@ export const useGitStore = create<GitStore>((set, get) => ({
       const lines = (await dedupedInvoke('git_blame', {
         path,
         file: params.path,
-        lineStart: params.lines?.start ?? null,
-        lineEnd: params.lines?.end ?? null,
+        line_start: params.lines?.start ?? null,
+        line_end: params.lines?.end ?? null,
       })) as BlameLine[];
       const blame: BlameResult = { path: params.path, lines };
       set({ blame });
@@ -542,7 +542,7 @@ export const useGitStore = create<GitStore>((set, get) => ({
       message: params.message,
       amend: params.amend,
       signoff: false,
-      noVerify: false,
+      no_verify: false,
     });
     await get().fetchAll();
   },
@@ -573,13 +573,13 @@ export const useGitStore = create<GitStore>((set, get) => ({
 
   stageHunk: async (file: string, patch: string) => {
     const path = requirePath(get());
-    await dedupedInvoke('git_stage_hunk', { path, file, patchText: patch });
+    await dedupedInvoke('git_stage_hunk', { path, file, patch_text: patch });
     await get().fetchStatus();
   },
 
   unstageHunk: async (file: string, patch: string) => {
     const path = requirePath(get());
-    await dedupedInvoke('git_unstage_hunk', { path, file, patchText: patch });
+    await dedupedInvoke('git_unstage_hunk', { path, file, patch_text: patch });
     await get().fetchStatus();
   },
 
@@ -618,7 +618,7 @@ export const useGitStore = create<GitStore>((set, get) => ({
       remote: params.remote || null,
       branch: params.branch || null,
       rebase: params.rebase,
-      ffOnly: false,
+      ff_only: false,
       autostash: false,
       appHandle,
     });
@@ -633,8 +633,8 @@ export const useGitStore = create<GitStore>((set, get) => ({
       remote: params.remote || null,
       branch: params.branch || null,
       force: params.force,
-      forceWithLease: false,
-      setUpstream: params.upstream,
+      force_with_lease: false,
+      set_upstream: params.upstream,
       tags: false,
       appHandle,
     });
@@ -647,8 +647,8 @@ export const useGitStore = create<GitStore>((set, get) => ({
     await dedupedInvoke('git_push_stash', {
       path,
       message: params.message || null,
-      keepIndex: params.keep_index,
-      includeUntracked: params.include_untracked,
+      keep_index: params.keep_index,
+      include_untracked: params.include_untracked,
     });
     await get().fetchStashes();
     await get().fetchStatus();
@@ -712,7 +712,7 @@ export const useGitStore = create<GitStore>((set, get) => ({
       path,
       branch: params.branch,
       strategy: null,
-      ffMode: params.ff,
+      ff_mode: params.ff,
     });
     await get().fetchAll();
   },
@@ -728,7 +728,7 @@ export const useGitStore = create<GitStore>((set, get) => ({
     await dedupedInvoke('git_create_branch', {
       path,
       name: params.name,
-      refName: params.ref || null,
+      ref_name: params.ref || null,
     });
     await get().fetchBranches();
   },
@@ -741,13 +741,13 @@ export const useGitStore = create<GitStore>((set, get) => ({
 
   renameBranch: async (oldName: string, newName: string) => {
     const path = requirePath(get());
-    await dedupedInvoke('git_rename_branch', { path, oldName, newName });
+    await dedupedInvoke('git_rename_branch', { path, old_name: oldName, new_name: newName });
     await get().fetchBranches();
   },
 
   setUpstream: async (branch: string, remoteBranch: string) => {
     const path = requirePath(get());
-    await dedupedInvoke('git_set_upstream', { path, branch, remoteBranch });
+    await dedupedInvoke('git_set_upstream', { path, branch, remote_branch: remoteBranch });
     await get().fetchBranches();
   },
 
@@ -757,7 +757,7 @@ export const useGitStore = create<GitStore>((set, get) => ({
       path,
       name: params.name,
       message: params.message || null,
-      refName: params.commit || null,
+      ref_name: params.commit || null,
     });
     await get().fetchTags();
   },
@@ -840,13 +840,13 @@ export const useGitStore = create<GitStore>((set, get) => ({
 
   addWorktree: async (path: string, refName: string) => {
     const repoPath = requirePath(get());
-    await dedupedInvoke('git_add_worktree', { path: repoPath, worktreePath: path, refName });
+    await dedupedInvoke('git_add_worktree', { path: repoPath, worktree_path: path, ref_name: refName, branch: null, create_branch: true });
     await get().fetchWorktrees();
   },
 
   removeWorktree: async (path: string, force: boolean) => {
     const repoPath = requirePath(get());
-    await dedupedInvoke('git_remove_worktree', { path: repoPath, worktreePath: path, force });
+    await dedupedInvoke('git_remove_worktree', { path: repoPath, worktree_path: path, force });
     await get().fetchWorktrees();
   },
 
@@ -858,7 +858,7 @@ export const useGitStore = create<GitStore>((set, get) => ({
 
   createArchive: async (output: string, refName: string, format: string) => {
     const path = requirePath(get());
-    await dedupedInvoke('git_create_archive', { path, output, refName, format });
+    await dedupedInvoke('git_create_archive', { path, output, ref_name: refName, format });
   },
 
   listSubmodules: async () => {
@@ -896,7 +896,20 @@ export const useGitStore = create<GitStore>((set, get) => ({
     const path = requirePath(get());
     set((s) => ({ loading: { ...s.loading, inProgress: true }, errors: { ...s.errors, inProgress: null } }));
     try {
-      const state: InProgressState = await dedupedInvoke('git_get_in_progress', { path });
+      const operationTypeMap: Record<string, InProgressState['type']> = {
+        'merge': 'merge',
+        'rebase': 'rebase',
+        'rebase-merge': 'rebase',
+        'rebase-apply': 'rebase',
+        'cherry-pick': 'cherry_pick',
+        'revert': 'revert',
+        'bisect': 'bisect',
+      };
+      const raw = await dedupedInvoke<{ operation: string; detail: string | null }>('git_get_in_progress', { path });
+      const state: InProgressState = raw ? {
+        type: operationTypeMap[raw.operation] || 'none',
+        details: raw.detail || '',
+      } : { type: 'none', details: '' };
       set({ inProgress: state });
     } catch (e) {
       set((s) => ({ errors: { ...s.errors, inProgress: String(e) } }));
@@ -913,6 +926,7 @@ export const useGitStore = create<GitStore>((set, get) => ({
       author: params.author ?? null,
       since: params.since ?? null,
       until: params.until ?? null,
+      limit: params.limit ?? 100,
     });
   },
 
@@ -946,12 +960,12 @@ export const useGitStore = create<GitStore>((set, get) => ({
 
   savePatch: async (sha: string, outputDir: string) => {
     const path = requirePath(get());
-    await dedupedInvoke('git_save_patch', { path, sha, outputDir });
+    await dedupedInvoke('git_save_patch', { path, sha, output_dir: outputDir });
   },
 
   applyPatch: async (patchFile: string) => {
     const path = requirePath(get());
-    await dedupedInvoke('git_apply_patch', { path, patchFile });
+    await dedupedInvoke('git_apply_patch', { path, patch_file: patchFile });
     await get().fetchAll();
   },
 
@@ -967,12 +981,12 @@ export const useGitStore = create<GitStore>((set, get) => ({
 
   stashShow: async (index: number) => {
     const path = requirePath(get());
-    return await dedupedInvoke('git_stash_show', { path, index });
+    return await dedupedInvoke('git_show_stash', { path, index });
   },
 
   editRemote: async (name: string, newUrl: string) => {
     const path = requirePath(get());
-    await dedupedInvoke('git_edit_remote', { path, name, newUrl });
+    await dedupedInvoke('git_edit_remote', { path, name, new_url: newUrl });
     await get().fetchRemotes();
   },
 
@@ -987,15 +1001,15 @@ export const useGitStore = create<GitStore>((set, get) => ({
   },
 
   openInFileManager: async (path: string) => {
-    await dedupedInvoke('open_in_file_manager', { path });
+    await dedupedInvoke('git_open_in_file_manager', { path });
   },
 
   openInTerminal: async (path: string) => {
-    await dedupedInvoke('open_in_terminal', { path });
+    await dedupedInvoke('git_open_in_terminal', { path });
   },
 
   openInBrowser: async (url: string) => {
-    await dedupedInvoke('open_in_browser', { url });
+    await dedupedInvoke('git_open_in_browser', { url });
   },
 
   lfsIsAvailable: async () => {
@@ -1050,7 +1064,7 @@ export const useGitStore = create<GitStore>((set, get) => ({
 
   lfsPrune: async (dryRun?: boolean) => {
     const path = requirePath(get());
-    return await invoke<string>('git_lfs_prune', { path, dryRun: dryRun ?? false });
+    return await invoke<string>('git_lfs_prune', { path, dry_run: dryRun ?? false });
   },
 
   lfsLock: async (file: string) => {
@@ -1094,7 +1108,7 @@ export const useGitStore = create<GitStore>((set, get) => ({
     await dedupedInvoke('git_start_interactive_rebase_with_todos', {
       path: repoPath,
       onto: path,
-      todoText,
+      todo_text: todoText,
       appHandle,
     });
     await get().fetchAll();
@@ -1128,12 +1142,12 @@ export const useGitStore = create<GitStore>((set, get) => ({
 
   diffRevisionFiles: async (oldRef: string, newRef: string) => {
     const path = requirePath(get());
-    return await dedupedInvoke('git_diff_revision_files', { path, oldRef, newRef });
+    return await dedupedInvoke('git_diff_revision_files', { path, old_ref: oldRef, new_ref: newRef });
   },
 
   queryFileContent: async (refName: string, filePath: string) => {
     const path = requirePath(get());
-    return await dedupedInvoke('git_query_file_content', { path, refName, filePath });
+    return await dedupedInvoke('git_query_file_content', { path, ref_name: refName, file_path: filePath });
   },
 
   // === Statistics additional ===
@@ -1170,7 +1184,7 @@ export const useGitStore = create<GitStore>((set, get) => ({
   },
 
   getMirrorUrl: async (originalUrl: string, mirrorType: string) => {
-    return await dedupedInvoke('get_mirror_url', { originalUrl, mirrorType });
+    return await dedupedInvoke('get_mirror_url', { original_url: originalUrl, mirror_type: mirrorType });
   },
 
   // === AI ===
@@ -1185,24 +1199,24 @@ export const useGitStore = create<GitStore>((set, get) => ({
   ) => {
     const path = requirePath(get());
     return await dedupedInvoke('ai_generate_commit_message', {
-      repoPath: path,
-      diffText,
+      repo_path: path,
+      diff_text: diffText,
       provider,
-      apiUrl,
-      apiKey,
+      api_url: apiUrl,
+      api_key: apiKey,
       model,
-      extraPrompt,
+      extra_prompt: extraPrompt,
     });
   },
 
   aiFetchModels: async (provider: string, apiUrl: string, apiKey: string) => {
-    return await dedupedInvoke<string[]>('ai_fetch_models', { provider, apiUrl, apiKey });
+    return await dedupedInvoke<string[]>('ai_fetch_models', { provider, api_url: apiUrl, api_key: apiKey });
   },
 
   // === PR ===
 
   detectPlatform: async (remoteUrl: string) => {
-    return await dedupedInvoke('detect_platform', { remoteUrl });
+    return await dedupedInvoke('detect_platform', { remote_url: remoteUrl });
   },
 
   createPullRequest: async (config: {
@@ -1218,7 +1232,7 @@ export const useGitStore = create<GitStore>((set, get) => ({
   }) => {
     return await dedupedInvoke('create_pull_request', {
       platform: config.platform,
-      apiUrl: config.apiUrl,
+      api_url: config.apiUrl,
       token: config.token,
       owner: config.owner,
       repo: config.repo,
@@ -1248,7 +1262,7 @@ export const useGitStore = create<GitStore>((set, get) => ({
       release: params.release ?? 'release/',
       hotfix: params.hotfix ?? 'hotfix/',
       support: params.support ?? 'support/',
-      versionTagPrefix: params.versionTagPrefix ?? '',
+      version_tag_prefix: params.versionTagPrefix ?? '',
     };
     await dedupedInvoke('gitflow_init', { path, branches });
     await get().fetchBranches();
@@ -1258,7 +1272,7 @@ export const useGitStore = create<GitStore>((set, get) => ({
     const path = requirePath(get());
     await dedupedInvoke('gitflow_start', {
       path,
-      branchType: params.branchType,
+      branch_type: params.branchType,
       name: params.name,
       base: params.base ?? null,
     });
@@ -1278,13 +1292,13 @@ export const useGitStore = create<GitStore>((set, get) => ({
     const options = {
       fetch: params.fetch ?? false,
       rebase: params.rebase ?? false,
-      keepBranch: params.keepBranch ?? false,
+      keep_branch: params.keepBranch ?? false,
       push: params.push ?? false,
       message: params.message ?? null,
     };
     await dedupedInvoke('gitflow_finish', {
       path,
-      branchType: params.branchType,
+      branch_type: params.branchType,
       name: params.name,
       options,
     });
@@ -1340,7 +1354,7 @@ export const useGitStore = create<GitStore>((set, get) => ({
     return await dedupedInvoke('git_execute_custom_action', {
       path,
       action: params.action,
-      variableValues: params.variableValues,
+      variable_values: params.variableValues,
       appHandle,
     });
   },

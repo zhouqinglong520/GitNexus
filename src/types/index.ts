@@ -582,10 +582,6 @@ export interface InProgressState {
 /** Conflict file information */
 export interface ConflictFile {
   path: string;
-  ours_content: string;
-  theirs_content: string;
-  base_content?: string;
-  resolved: boolean;
 }
 
 /** Search parameters for commit search */
@@ -594,6 +590,7 @@ export interface SearchParams {
   author?: string;
   since?: string;
   until?: string;
+  limit?: number;
 }
 
 /** Extended repository statistics (with file count and repo size) */

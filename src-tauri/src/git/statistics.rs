@@ -19,6 +19,8 @@ pub async fn get_statistics(path: &str, since: Option<&str>) -> Result<Repositor
 
     let since_owned = since.map(|s| s.to_string());
     let since_clone = since_owned.clone();
+    let since_owned3 = since.map(|s| s.to_string());
+    let since_owned4 = since.map(|s| s.to_string());
 
     let (total_commits, total_authors, total_branches, total_tags, total_remotes, total_stashes, total_worktrees, first_commit_time, last_commit_time, total_insertions, total_deletions) = tokio::join!(
         tokio::task::spawn_blocking(move || {
@@ -112,7 +114,7 @@ pub async fn get_statistics(path: &str, since: Option<&str>) -> Result<Repositor
         tokio::task::spawn_blocking(move || {
             let git = GitCommand::new(&path10);
             let mut args: Vec<&str> = vec!["log", "--shortstat", "--format="];
-            if let Some(ref s) = since {
+            if let Some(ref s) = since_owned3 {
                 args = vec!["log", "--shortstat", &format!("--since={}", s), "--format="];
             }
             git.read_to_end(&args)
@@ -137,7 +139,7 @@ pub async fn get_statistics(path: &str, since: Option<&str>) -> Result<Repositor
         tokio::task::spawn_blocking(move || {
             let git = GitCommand::new(&path11);
             let mut args: Vec<&str> = vec!["log", "--shortstat", "--format="];
-            if let Some(ref s) = since {
+            if let Some(ref s) = since_owned4 {
                 args = vec!["log", "--shortstat", &format!("--since={}", s), "--format="];
             }
             git.read_to_end(&args)
