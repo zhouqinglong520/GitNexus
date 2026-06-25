@@ -1,10 +1,13 @@
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
+import { invoke } from '@tauri-apps/api/core';
 import { useGitStore } from '@/stores/git-store';
 import { useUIStore } from '@/stores/ui-store';
+import { usePreferencesStore, densityConfig } from '@/stores/preferences-store';
 import { useTranslation } from '@/i18n';
 import { CommitGraph } from '@/components/CommitGraph';
 import { DiffView } from '@/components/DiffView';
-import { GitCommit, User, Clock, Copy, Check, Archive } from 'lucide-react';
+import { InteractiveRebase } from '@/components/InteractiveRebase';
+import { GitCommit, User, Clock, Copy, Check, Archive, ChevronDown, ChevronUp } from 'lucide-react';
 import type { Commit, CommitDetail, ContextMenuItem } from '@/types';
 import { formatRelativeTime } from '@/utils/format';
 import { parseDiff } from '@/utils/diff-parser';
@@ -39,7 +42,12 @@ export const Histories: React.FC = () => {
   const createArchive = useGitStore((s) => s.createArchive);
   const showContextMenu = useUIStore((s) => s.showContextMenu);
   const addNotification = useUIStore((s) => s.addNotification);
+  const showDialog = useUIStore((s) => s.showDialog);
   const { t } = useTranslation();
+
+  // Density settings
+  const density = usePreferencesStore((s) => s.preferences.appearance.density);
+  const densityStyle = densityConfig[density];
 
   const [showDetail, setShowDetail] = useState(true);
   const [detailCommit, setDetailCommit] = useState<Commit | null>(null);
@@ -50,6 +58,29 @@ export const Histories: React.FC = () => {
   const [archiveOutput, setArchiveOutput] = useState('');
   const [archiveExporting, setArchiveExporting] = useState(false);
 
+  // Multi-select state for interactive rebase
+  const [selectedCommits, setSelectedCommits] = useState<Set<string>>(new Set());
+  const [rebaseDialogOpen, setRebaseDialogOpen] = useState(false);
+  const [rebaseDialogCommits, setRebaseDialogCommits] = useState<Commit[]>([]);
+  const [rebaseDialogBaseSha, setRebaseDialogBaseSha] = useState('');
+
+  // Spacebar quick preview state
+  const [previewCommit, setPreviewCommit] = useState<string | null>(null);
+  const [previewDetail, setPreviewDetail] = useState<CommitDetail | null>(null);
+  const [previewDiff, setPreviewDiff] = useState<string | null>(null);
+  const [previewDiffLoading, setPreviewDiffLoading] = useState(false);
+
+  // Helper to check if input is focused
+  const isInputFocused = useCallback((e: KeyboardEvent) => {
+    const target = e.target as HTMLElement;
+    return (
+      target.tagName === 'INPUT' ||
+      target.tagName === 'TEXTAREA' ||
+      target.tagName === 'SELECT' ||
+      target.isContentEditable
+    );
+  }, []);
+
   const parsedDiffFiles = useMemo(() => {
     if (!diff) return [];
     return parseDiff(diff);
@@ -59,13 +90,71 @@ export const Histories: React.FC = () => {
     fetchCommits({ max_count: 200 });
   }, [fetchCommits]);
 
+  // Spacebar quick preview key handler
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.code === 'Space' && selectedCommitId && !isInputFocused(e)) {
+        e.preventDefault();
+        setPreviewCommit((prev) => (prev === selectedCommitId ? null : selectedCommitId));
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [selectedCommitId, isInputFocused]);
+
+  // Fetch preview data when previewCommit changes
+  useEffect(() => {
+    if (previewCommit) {
+      setPreviewDiffLoading(true);
+      const commit = commits.find((c) => c.sha === previewCommit);
+      if (commit) {
+        fetchDiff({ commit1: commit.sha + '^', commit2: commit.sha });
+        fetchCommitDetail(commit.sha);
+      }
+    } else {
+      setPreviewDiff(null);
+      setPreviewDetail(null);
+    }
+  }, [previewCommit]);
+
+  // Sync preview data from store when diff/commitDetail change
+  useEffect(() => {
+    if (previewCommit) {
+      setPreviewDiff(diff);
+      setPreviewDetail(commitDetail);
+      setPreviewDiffLoading(diffLoading || commitDetailLoading);
+    }
+  }, [diff, commitDetail, diffLoading, commitDetailLoading, previewCommit]);
+
+  const previewParsedDiffFiles = useMemo(() => {
+    if (!previewDiff) return [];
+    return parseDiff(previewDiff);
+  }, [previewDiff]);
+
   const selectedCommit = useMemo(
     () => commits.find((c) => c.sha === selectedCommitId),
     [commits, selectedCommitId]
   );
 
   const handleCommitClick = useCallback(
-    (commitId: string) => {
+    (commitId: string, e?: React.MouseEvent) => {
+      // Multi-select with Ctrl/Cmd key
+      if (e && (e.ctrlKey || e.metaKey)) {
+        setSelectedCommits((prev) => {
+          const next = new Set(prev);
+          if (next.has(commitId)) {
+            next.delete(commitId);
+          } else {
+            next.add(commitId);
+          }
+          return next;
+        });
+        return;
+      }
+
+      // Clear multi-select on normal click
+      setSelectedCommits(new Set());
+
       setSelectedCommitId(commitId);
       const commit = commits.find((c) => c.sha === commitId);
       if (commit) {
@@ -78,9 +167,50 @@ export const Histories: React.FC = () => {
     [commits, setSelectedCommitId, fetchDiff, fetchCommitDetail]
   );
 
+  // ---- Interactive rebase handlers ----
+  const handleOpenInteractiveRebase = useCallback(
+    (baseSha: string, selectedShas: string[]) => {
+      // Find the selected commits in order (from the commits list)
+      const selectedCommitsList = commits.filter((c) => selectedShas.includes(c.sha));
+      if (selectedCommitsList.length === 0) return;
+
+      // The base is the parent of the oldest selected commit
+      // (passed in from context menu)
+      setRebaseDialogCommits(selectedCommitsList);
+      setRebaseDialogBaseSha(baseSha);
+      setRebaseDialogOpen(true);
+      setSelectedCommits(new Set());
+    },
+    [commits]
+  );
+
+  const handleStartRebase = useCallback(
+    async (baseSha: string, todoText: string) => {
+      setRebaseDialogOpen(false);
+      try {
+        const repoPath = useGitStore.getState().repoPath;
+        if (!repoPath) return;
+        await invoke('git_start_interactive_rebase_with_todos', {
+          path: repoPath,
+          onto: baseSha,
+          todoText,
+        });
+        addNotification({ type: 'success', title: t('interactiveRebase.success') });
+        // Refresh data
+        useGitStore.getState().fetchAll();
+      } catch (err) {
+        addNotification({ type: 'error', title: t('interactiveRebase.failed'), message: String(err) });
+      }
+    },
+    [addNotification]
+  );
+
   const handleContextMenu = useCallback(
     (e: React.MouseEvent, commit: Commit) => {
       e.preventDefault();
+      const selectedShas = Array.from(selectedCommits);
+      const hasMultipleSelected = selectedShas.length >= 2;
+
       const items: ContextMenuItem[] = [
         {
           id: 'copy-hash',
@@ -158,9 +288,30 @@ export const Histories: React.FC = () => {
           },
         },
       ];
+
+      // Add interactive rebase option when multiple commits are selected
+      if (hasMultipleSelected) {
+        // Find the parent of the oldest selected commit as the rebase base
+        const allSelectedCommits = commits.filter((c) => selectedShas.includes(c.sha));
+        // The oldest commit is the last one in the list (commits are ordered newest first)
+        const oldestCommit = allSelectedCommits[allSelectedCommits.length - 1];
+        const baseSha = oldestCommit.parents?.[0] ?? '';
+
+        items.push(
+          { id: 'sep-rebase', label: '', separator: true },
+          {
+            id: 'interactive-rebase',
+            label: t('histories.interactiveRebase'),
+            action: () => {
+              handleOpenInteractiveRebase(baseSha, selectedShas);
+            },
+          }
+        );
+      }
+
       showContextMenu(e.clientX, e.clientY, items);
     },
-    [showContextMenu, addNotification, checkout, cherryPick, revert, createBranch, createTag, archiveFormat]
+    [showContextMenu, addNotification, checkout, cherryPick, revert, createBranch, createTag, archiveFormat, selectedCommits, commits, handleOpenInteractiveRebase]
   );
 
   const handleExportArchive = useCallback(async () => {
@@ -179,6 +330,45 @@ export const Histories: React.FC = () => {
       setArchiveExporting(false);
     }
   }, [archiveOutput, archiveRef, archiveFormat, createArchive, addNotification]);
+
+  // Drag-and-drop handler for cherry-pick / merge
+  const handleDragCommit = useCallback(
+    (sourceSha: string, targetBranch: string, operation: 'cherry-pick' | 'merge') => {
+      const sourceCommit = commits.find((c) => c.sha === sourceSha);
+      const shortSha = sourceSha.slice(0, 7);
+      const subject = sourceCommit?.subject ?? '';
+
+      if (operation === 'cherry-pick') {
+        showDialog({
+          type: 'confirm',
+          title: t('histories.cherryPickConfirmTitle'),
+          message: t('histories.cherryPickConfirmMessage', shortSha, subject, targetBranch),
+          confirmLabel: t('histories.cherryPick'),
+          cancelLabel: t('common.cancel'),
+          onConfirm: () => {
+            cherryPick({ commits: [sourceSha] }).catch((err) => {
+              addNotification({ type: 'error', title: t('histories.cherryPickFailed'), message: String(err) });
+            });
+          },
+        });
+      } else {
+        showDialog({
+          type: 'confirm',
+          title: t('histories.mergeConfirmTitle'),
+          message: t('histories.mergeConfirmMessage', shortSha, subject, targetBranch),
+          confirmLabel: t('common.confirm'),
+          cancelLabel: t('common.cancel'),
+          onConfirm: () => {
+            const mergeFn = useGitStore.getState().merge;
+            mergeFn({ branch: sourceSha, message: `Merge ${shortSha} into ${targetBranch}`, ff: 'no-fast-forward' }).catch((err) => {
+              addNotification({ type: 'error', title: 'Merge failed', message: String(err) });
+            });
+          },
+        });
+      }
+    },
+    [commits, showDialog, cherryPick, addNotification]
+  );
 
   const getRefColor = (kind: string) => {
     switch (kind) {
@@ -202,11 +392,12 @@ export const Histories: React.FC = () => {
               commits={commits}
               selectedCommitId={selectedCommitId}
               onCommitClick={handleCommitClick}
+              onDragCommit={handleDragCommit}
             />
           </div>
 
           {/* Commit info list */}
-          <div className="flex-1 overflow-y-auto">
+          <div className="flex-1 overflow-y-auto" style={{ fontSize: densityStyle.fontSize }}>
             {loading ? (
               <div className="flex items-center justify-center h-32" style={{ color: 'var(--text-subtle)' }}>
                 <div className="animate-spin w-5 h-5 border-2 rounded-full" style={{ borderColor: 'var(--accent-blue)', borderTopColor: 'transparent' }} />
@@ -218,65 +409,160 @@ export const Histories: React.FC = () => {
             ) : (
               commits.map((commit) => {
                 const isSelected = commit.sha === selectedCommitId;
+                const isMultiSelected = selectedCommits.has(commit.sha);
                 const refs = parseRefs(commit.refs);
+                const isPreview = previewCommit === commit.sha;
                 return (
-                  <div
-                    key={commit.sha}
-                    onClick={() => handleCommitClick(commit.sha)}
-                    onContextMenu={(e) => handleContextMenu(e, commit)}
-                    className="flex items-start gap-3 px-3 py-2 cursor-pointer transition-colors border-b"
-                    style={{
-                      backgroundColor: isSelected ? 'rgba(137, 180, 250, 0.1)' : 'transparent',
-                      borderColor: 'var(--border-color)',
-                      borderLeft: isSelected ? '3px solid var(--accent-blue)' : '3px solid transparent',
-                    }}
-                  >
-                    {/* Refs */}
-                    <div className="flex flex-wrap gap-1 shrink-0 mt-0.5" style={{ minWidth: 60 }}>
-                      {refs.slice(0, 3).map((ref) => (
+                  <div key={commit.sha}>
+                    <div
+                      onClick={(e) => handleCommitClick(commit.sha, e)}
+                      onContextMenu={(e) => handleContextMenu(e, commit)}
+                      className="group flex items-start gap-3 cursor-pointer transition-colors border-b"
+                      style={{
+                        backgroundColor: isSelected
+                          ? 'rgba(137, 180, 250, 0.1)'
+                          : isMultiSelected
+                            ? 'rgba(250, 179, 135, 0.08)'
+                            : 'transparent',
+                        borderColor: 'var(--border-color)',
+                        borderLeft: isSelected
+                          ? '3px solid var(--accent-blue)'
+                          : isMultiSelected
+                            ? '3px solid var(--accent-peach)'
+                            : '3px solid transparent',
+                        padding: densityStyle.padding,
+                        minHeight: densityStyle.rowHeight,
+                      }}
+                    >
+                      {/* Refs */}
+                      <div className="flex flex-wrap gap-1 shrink-0 mt-0.5" style={{ minWidth: 60 }}>
+                        {refs.slice(0, 3).map((ref) => (
+                          <span
+                            key={ref.name}
+                            className="px-1.5 py-0.5 rounded text-xs font-medium"
+                            style={{
+                              backgroundColor: `${getRefColor(ref.kind)}20`,
+                              color: getRefColor(ref.kind),
+                              fontSize: 10,
+                            }}
+                          >
+                            {ref.name}
+                          </span>
+                        ))}
+                        {refs.length > 3 && (
+                          <span className="text-xs" style={{ color: 'var(--text-subtle)', fontSize: 10 }}>
+                            +{refs.length - 3}
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Message & info */}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span
+                            className="text-xs font-mono"
+                            style={{ color: 'var(--accent-yellow)', fontSize: 11 }}
+                          >
+                            {commit.sha.slice(0, 7)}
+                          </span>
+                          <span className="truncate" style={{ color: 'var(--text-primary)' }}>
+                            {commit.subject}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-3 text-xs" style={{ color: 'var(--text-subtle)', fontSize: 11 }}>
+                          <span className="flex items-center gap-1">
+                            <User size={10} />
+                            {commit.author_name}
+                          </span>
+                          <span className="flex items-center gap-1">
+                            <Clock size={10} />
+                            {formatRelativeTime(new Date(commit.author_time * 1000).toISOString())}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Space to preview hint */}
+                      {isSelected && (
                         <span
-                          key={ref.name}
-                          className="px-1.5 py-0.5 rounded text-xs font-medium"
-                          style={{
-                            backgroundColor: `${getRefColor(ref.kind)}20`,
-                            color: getRefColor(ref.kind),
-                            fontSize: 10,
-                          }}
+                          className="shrink-0 opacity-0 group-hover:opacity-100 transition-opacity text-xs"
+                          style={{ color: 'var(--text-subtle)', fontSize: 10 }}
                         >
-                          {ref.name}
-                        </span>
-                      ))}
-                      {refs.length > 3 && (
-                        <span className="text-xs" style={{ color: 'var(--text-subtle)', fontSize: 10 }}>
-                          +{refs.length - 3}
+                          {t('histories.spaceToPreview')}
                         </span>
                       )}
                     </div>
 
-                    {/* Message & info */}
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span
-                          className="text-xs font-mono"
-                          style={{ color: 'var(--accent-yellow)', fontSize: 11 }}
-                        >
-                          {commit.sha.slice(0, 7)}
-                        </span>
-                        <span className="text-sm truncate" style={{ color: 'var(--text-primary)' }}>
-                          {commit.subject}
-                        </span>
+                    {/* Inline preview panel */}
+                    {isPreview && (
+                      <div
+                        className="border-b"
+                        style={{
+                          borderColor: 'var(--border-color)',
+                          backgroundColor: 'var(--bg-overlay)',
+                          padding: densityStyle.padding,
+                        }}
+                      >
+                        <div className="flex items-center gap-2 mb-2">
+                          <ChevronUp size={14} style={{ color: 'var(--text-subtle)' }} />
+                          <span className="text-xs font-medium" style={{ color: 'var(--text-secondary)' }}>
+                            {t('histories.quickPreview')}
+                          </span>
+                          <button
+                            onClick={() => setPreviewCommit(null)}
+                            className="ml-auto p-0.5 rounded transition-colors hover:bg-overlay"
+                            style={{ color: 'var(--text-subtle)' }}
+                          >
+                            <ChevronUp size={14} />
+                          </button>
+                        </div>
+
+                        {/* Preview commit info */}
+                        {previewDetail && (
+                          <div className="space-y-1 text-xs mb-2" style={{ color: 'var(--text-secondary)' }}>
+                            <div className="flex items-center gap-2">
+                              <span style={{ color: 'var(--text-subtle)', width: 60 }}>{t('histories.author')}:</span>
+                              <span>{previewDetail.author_name} &lt;{previewDetail.author_email}&gt;</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span style={{ color: 'var(--text-subtle)', width: 60 }}>{t('histories.hash')}:</span>
+                              <span className="font-mono" style={{ color: 'var(--accent-yellow)' }}>
+                                {previewDetail.sha.slice(0, 16)}
+                              </span>
+                            </div>
+                            {previewDetail.body && (
+                              <pre
+                                className="whitespace-pre-wrap text-xs px-2 py-1.5 rounded"
+                                style={{
+                                  color: 'var(--text-primary)',
+                                  backgroundColor: 'var(--bg-surface)',
+                                  lineHeight: 1.5,
+                                  maxHeight: 80,
+                                  overflow: 'auto',
+                                }}
+                              >
+                                {previewDetail.body}
+                              </pre>
+                            )}
+                          </div>
+                        )}
+
+                        {/* Preview diff */}
+                        {previewDiffLoading ? (
+                          <div className="flex items-center gap-2 text-xs" style={{ color: 'var(--text-subtle)' }}>
+                            <div className="animate-spin w-3 h-3 border-2 rounded-full" style={{ borderColor: 'var(--accent-blue)', borderTopColor: 'transparent' }} />
+                            {t('histories.loadingDiff')}
+                          </div>
+                        ) : previewParsedDiffFiles.length > 0 ? (
+                          <div style={{ maxHeight: 300, overflow: 'auto' }}>
+                            <DiffView files={previewParsedDiffFiles} />
+                          </div>
+                        ) : (
+                          <div className="text-xs" style={{ color: 'var(--text-subtle)' }}>
+                            {t('histories.noChanges')}
+                          </div>
+                        )}
                       </div>
-                      <div className="flex items-center gap-3 mt-0.5 text-xs" style={{ color: 'var(--text-subtle)', fontSize: 11 }}>
-                        <span className="flex items-center gap-1">
-                          <User size={10} />
-                          {commit.author_name}
-                        </span>
-                        <span className="flex items-center gap-1">
-                          <Clock size={10} />
-                          {formatRelativeTime(new Date(commit.author_time * 1000).toISOString())}
-                        </span>
-                      </div>
-                    </div>
+                    )}
                   </div>
                 );
               })
@@ -592,6 +878,16 @@ export const Histories: React.FC = () => {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Interactive Rebase Dialog */}
+      {rebaseDialogOpen && (
+        <InteractiveRebase
+          commits={rebaseDialogCommits}
+          baseSha={rebaseDialogBaseSha}
+          onStart={handleStartRebase}
+          onCancel={() => setRebaseDialogOpen(false)}
+        />
       )}
     </div>
   );

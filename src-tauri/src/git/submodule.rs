@@ -103,3 +103,31 @@ pub fn update_submodule(
     git.read_to_end(&args)?;
     Ok(())
 }
+
+/// Deinitialize a submodule (remove its working directory and config).
+pub fn deinit_submodule(path: &str, name: &str) -> Result<(), GitError> {
+    let git = GitCommand::new(path);
+    git.read_to_end(&["submodule", "deinit", "-f", name])?;
+    Ok(())
+}
+
+/// Set the tracking branch for a submodule and update it.
+pub fn set_submodule_branch(path: &str, name: &str, branch: &str) -> Result<(), GitError> {
+    let git = GitCommand::new(path);
+
+    // Set the branch in .gitmodules
+    let config_key = format!("submodule.{}.branch", name);
+    git.read_to_end(&["config", "-f", ".gitmodules", &config_key, branch])?;
+
+    // Update the submodule to track the new branch
+    git.read_to_end(&["submodule", "update", "--remote", name])?;
+
+    Ok(())
+}
+
+/// Change the URL of a submodule.
+pub fn change_submodule_url(path: &str, name: &str, url: &str) -> Result<(), GitError> {
+    let git = GitCommand::new(path);
+    git.read_to_end(&["submodule", "set-url", name, url])?;
+    Ok(())
+}

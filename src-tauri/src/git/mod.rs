@@ -12,6 +12,7 @@ pub mod diff;
 pub mod discard;
 pub mod fetch;
 pub mod file_ops;
+pub mod gc;
 pub mod gitflow;
 pub mod in_progress;
 pub mod lfs;

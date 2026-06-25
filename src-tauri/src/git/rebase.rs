@@ -91,3 +91,73 @@ where
         ))
     }
 }
+
+/// Edit the commit message during a rebase by amending the current commit
+/// and continuing the rebase.
+pub fn rebase_edit_message(path: &str, message: String) -> Result<(), GitError> {
+    let git = GitCommand::new(path);
+
+    // Amend the current commit with the new message
+    git.read_to_end(&["commit", "--amend", "-m", &message])?;
+
+    // Continue the rebase
+    git.read_to_end(&["rebase", "--continue"])?;
+
+    Ok(())
+}
+
+/// Start an interactive rebase with a custom todo list.
+/// The `todo_text` parameter contains the full rebase-todo content (e.g. "pick abc123 ...\nreword def456 ...\n").
+/// Uses GIT_SEQUENCE_EDITOR to replace the default todo file with the custom content.
+pub async fn start_interactive_rebase_with_todos<F>(
+    path: &str,
+    onto: &str,
+    todo_text: &str,
+    on_output: F,
+) -> Result<(), GitError>
+where
+    F: Fn(String) + Send + 'static,
+{
+    // Build a shell command that writes our custom todo content into the file
+    // that git provides via $1 argument to GIT_SEQUENCE_EDITOR.
+    // We use `cp /dev/stdin "$1"` piped with our content, or simpler: `printf '...' > "$1"`
+    // To avoid shell injection, we write the todo text to a temp file first,
+    // then use `cp` to overwrite the git todo file.
+    let temp_dir = std::env::temp_dir();
+    let temp_file = temp_dir.join("git-rebase-todo-custom");
+    std::fs::write(&temp_file, todo_text)
+        .map_err(|e| GitError::ProcessError(format!("Failed to write temp todo file: {}", e)))?;
+
+    let editor_script = format!("cp {} \"$1\"", temp_file.display());
+
+    let mut cmd = tokio::process::Command::new("git");
+    cmd.arg("--no-pager")
+        .arg("-c")
+        .arg("core.quotepath=off")
+        .current_dir(path)
+        .env("GIT_TERMINAL_PROMPT", "0")
+        .env("GIT_SEQUENCE_EDITOR", &editor_script)
+        .args(&["rebase", "-i", onto])
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped());
+
+    let output = cmd
+        .output()
+        .await
+        .map_err(|e| GitError::ProcessError(e.to_string()))?;
+
+    // Clean up temp file
+    let _ = std::fs::remove_file(&temp_file);
+
+    if output.status.success() {
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        for line in stdout.lines() {
+            on_output(line.to_string());
+        }
+        Ok(())
+    } else {
+        Err(GitError::CommandError(
+            String::from_utf8_lossy(&output.stderr).to_string(),
+        ))
+    }
+}

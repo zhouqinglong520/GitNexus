@@ -1,5 +1,5 @@
 use crate::git::command::{GitCommand, GitError};
-use crate::models::{Remote, RepositoryInfo};
+use crate::models::{Remote, RepositoryInfo, ScannedRepo};
 
 /// Open a repository at the given path and return basic info.
 pub fn open_repo(path: &str) -> Result<RepositoryInfo, GitError> {
@@ -135,5 +135,76 @@ pub fn get_config(path: &str, key: &str) -> Result<String, GitError> {
 pub fn set_config(path: &str, key: &str, value: &str) -> Result<(), GitError> {
     let git = GitCommand::new(path);
     git.read_to_end(&["config", key, value])?;
+    Ok(())
+}
+
+/// Recursively scan a directory for Git repositories.
+pub fn scan_repositories(directory: &str, max_depth: u32) -> Result<Vec<ScannedRepo>, GitError> {
+    let mut repos = Vec::new();
+    scan_repositories_recursive(directory, max_depth, 0, &mut repos)?;
+    Ok(repos)
+}
+
+fn scan_repositories_recursive(
+    dir: &str,
+    max_depth: u32,
+    current_depth: u32,
+    repos: &mut Vec<ScannedRepo>,
+) -> Result<(), GitError> {
+    if current_depth > max_depth {
+        return Ok(());
+    }
+
+    let entries = std::fs::read_dir(dir).map_err(|e| GitError::ProcessError(e.to_string()))?;
+
+    for entry in entries {
+        let entry = entry.map_err(|e| GitError::ProcessError(e.to_string()))?;
+        let path = entry.path();
+
+        // Skip hidden directories (except .git which we check explicitly)
+        let file_name = path.file_name();
+        if let Some(name) = file_name {
+            let name_str = name.to_string_lossy();
+            if name_str.starts_with('.') && name_str != ".git" {
+                continue;
+            }
+        }
+
+        if path.is_dir() {
+            let git_dir = path.join(".git");
+            if git_dir.exists() {
+                // This is a git repository
+                let path_str = path.to_string_lossy().to_string();
+                let name = path
+                    .file_name()
+                    .map(|n| n.to_string_lossy().to_string())
+                    .unwrap_or_else(|| path_str.clone());
+
+                // Try to get the current branch
+                let branch = {
+                    let git = GitCommand::new(&path_str);
+                    let result = git.read_to_end(&["rev-parse", "--abbrev-ref", "HEAD"]);
+                    match result {
+                        Ok(b) => {
+                            let b = b.trim().to_string();
+                            if b == "HEAD" { None } else { Some(b) }
+                        }
+                        Err(_) => None,
+                    }
+                };
+
+                repos.push(ScannedRepo {
+                    path: path_str,
+                    name,
+                    branch,
+                });
+            } else {
+                // Recurse into subdirectories
+                let sub_dir = path.to_string_lossy().to_string();
+                let _ = scan_repositories_recursive(&sub_dir, max_depth, current_depth + 1, repos);
+            }
+        }
+    }
+
     Ok(())
 }

@@ -116,6 +116,8 @@ interface GitStore {
   unstage: (params: UnstageParams) => Promise<void>;
   stageAll: () => Promise<void>;
   unstageAll: () => Promise<void>;
+  stageHunk: (file: string, patch: string) => Promise<void>;
+  unstageHunk: (file: string, patch: string) => Promise<void>;
   checkout: (params: CheckoutParams) => Promise<void>;
   discard: (paths: string[]) => Promise<void>;
   fetchRemote: (params: FetchParams) => Promise<void>;
@@ -480,6 +482,18 @@ export const useGitStore = create<GitStore>((set, get) => ({
   unstageAll: async () => {
     const path = requirePath(get());
     await invoke('git_unstage_all', { path });
+    await get().fetchStatus();
+  },
+
+  stageHunk: async (file: string, patch: string) => {
+    const path = requirePath(get());
+    await invoke('git_stage_hunk', { path, file, patchText: patch });
+    await get().fetchStatus();
+  },
+
+  unstageHunk: async (file: string, patch: string) => {
+    const path = requirePath(get());
+    await invoke('git_unstage_hunk', { path, file, patchText: patch });
     await get().fetchStatus();
   },
 

@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useCallback, useMemo } from 'react';
+import React, { useRef, useEffect, useCallback, useMemo, useState } from 'react';
 import type { Commit } from '@/types';
 
 // 10-color palette for commit graph lanes
@@ -26,6 +26,7 @@ interface CommitGraphProps {
   commits: Commit[];
   selectedCommitId: string | null;
   onCommitClick: (commitId: string) => void;
+  onDragCommit?: (sourceSha: string, targetBranch: string, operation: 'cherry-pick' | 'merge') => void;
   rowHeight?: number;
   nodeRadius?: number;
   className?: string;
@@ -46,10 +47,25 @@ function parseRefs(refsStr: string): { name: string; kind: string }[] {
   }
 }
 
+/** Collect unique branch names from all commits */
+function collectBranches(commits: Commit[]): { name: string; kind: string }[] {
+  const branchMap = new Map<string, string>();
+  for (const commit of commits) {
+    const refs = parseRefs(commit.refs);
+    for (const ref of refs) {
+      if (ref.kind === 'branch' || ref.kind === 'head') {
+        branchMap.set(ref.name, ref.kind);
+      }
+    }
+  }
+  return Array.from(branchMap.entries()).map(([name, kind]) => ({ name, kind }));
+}
+
 export const CommitGraph: React.FC<CommitGraphProps> = ({
   commits,
   selectedCommitId,
   onCommitClick,
+  onDragCommit,
   rowHeight = ROW_HEIGHT,
   nodeRadius = NODE_RADIUS,
   className = '',
@@ -58,6 +74,7 @@ export const CommitGraph: React.FC<CommitGraphProps> = ({
   const containerRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<number>(0);
   const visibleRangeRef = useRef<{ start: number; end: number }>({ start: 0, end: 0 });
+  const [dragOverBranch, setDragOverBranch] = useState<string | null>(null);
 
   // Assign lanes to commits using a simple lane assignment algorithm
   const graphData = useMemo(() => {
@@ -108,6 +125,9 @@ export const CommitGraph: React.FC<CommitGraphProps> = ({
 
   const totalHeight = commits.length * rowHeight;
   const graphWidth = graphData.maxLanes * LANE_WIDTH + PADDING_LEFT * 2;
+
+  // Collect branch labels for drop targets
+  const branches = useMemo(() => collectBranches(commits), [commits]);
 
   const drawGraph = useCallback(
     (startIdx: number, endIdx: number) => {
@@ -265,10 +285,56 @@ export const CommitGraph: React.FC<CommitGraphProps> = ({
     [commits, onCommitClick, rowHeight]
   );
 
+  // Drag handlers for commit nodes
+  const handleDragStart = useCallback(
+    (e: React.DragEvent, sha: string) => {
+      e.dataTransfer.setData('text/plain', JSON.stringify({ type: 'commit', sha }));
+      e.dataTransfer.effectAllowed = 'copy';
+    },
+    []
+  );
+
+  const handleBranchDragOver = useCallback((e: React.DragEvent, branchName: string) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'copy';
+    setDragOverBranch(branchName);
+  }, []);
+
+  const handleBranchDragLeave = useCallback(() => {
+    setDragOverBranch(null);
+  }, []);
+
+  const handleBranchDrop = useCallback(
+    (e: React.DragEvent, branchName: string) => {
+      e.preventDefault();
+      setDragOverBranch(null);
+      try {
+        const data = JSON.parse(e.dataTransfer.getData('text/plain'));
+        if (data.type === 'commit' && data.sha && onDragCommit) {
+          onDragCommit(data.sha, branchName, 'cherry-pick');
+        }
+      } catch {
+        // Ignore invalid drag data
+      }
+    },
+    [onDragCommit]
+  );
+
+  // Find the commit index for a given branch (first commit that has this branch ref)
+  const getBranchCommitIndex = useCallback(
+    (branchName: string) => {
+      return commits.findIndex((c) => {
+        const refs = parseRefs(c.refs);
+        return refs.some((r) => r.name === branchName && (r.kind === 'branch' || r.kind === 'head'));
+      });
+    },
+    [commits]
+  );
+
   return (
     <div
       ref={containerRef}
-      className={`overflow-y-auto overflow-x-hidden ${className}`}
+      className={`overflow-y-auto overflow-x-hidden relative ${className}`}
       style={{ height: totalHeight }}
     >
       <canvas
@@ -283,6 +349,75 @@ export const CommitGraph: React.FC<CommitGraphProps> = ({
           pointerEvents: 'auto',
         }}
       />
+
+      {/* Invisible draggable overlay for commit nodes */}
+      {graphData.nodes.map((node, idx) => {
+        const x = PADDING_LEFT + node.lane * LANE_WIDTH + LANE_WIDTH / 2;
+        const y = idx * rowHeight + rowHeight / 2;
+        const hitSize = (nodeRadius + 6) * 2;
+        return (
+          <div
+            key={node.commit.sha}
+            draggable={!!onDragCommit}
+            onDragStart={(e) => handleDragStart(e, node.commit.sha)}
+            style={{
+              position: 'absolute',
+              left: x - hitSize / 2,
+              top: y - hitSize / 2,
+              width: hitSize,
+              height: hitSize,
+              cursor: onDragCommit ? 'grab' : 'default',
+              zIndex: 10,
+              borderRadius: '50%',
+            }}
+            title={onDragCommit ? `Drag to cherry-pick ${node.commit.sha.slice(0, 7)}` : undefined}
+          />
+        );
+      })}
+
+      {/* Branch drop targets */}
+      {branches.map((branch) => {
+        const commitIdx = getBranchCommitIndex(branch.name);
+        if (commitIdx < 0) return null;
+        const node = graphData.nodes[commitIdx];
+        if (!node) return null;
+
+        const x = PADDING_LEFT + node.lane * LANE_WIDTH + LANE_WIDTH / 2;
+        const y = commitIdx * rowHeight + rowHeight / 2;
+        const labelX = x + nodeRadius + 8;
+
+        return (
+          <div
+            key={`branch-${branch.name}`}
+            onDragOver={(e) => handleBranchDragOver(e, branch.name)}
+            onDragLeave={handleBranchDragLeave}
+            onDrop={(e) => handleBranchDrop(e, branch.name)}
+            style={{
+              position: 'absolute',
+              left: labelX,
+              top: y - 8,
+              padding: '2px 6px',
+              borderRadius: 4,
+              fontSize: 10,
+              fontWeight: 500,
+              whiteSpace: 'nowrap',
+              cursor: 'default',
+              zIndex: 10,
+              backgroundColor: dragOverBranch === branch.name
+                ? 'rgba(137, 180, 250, 0.3)'
+                : `${node.color}20`,
+              color: node.color,
+              border: dragOverBranch === branch.name
+                ? '1px dashed var(--accent-blue)'
+                : '1px solid transparent',
+              transition: 'all 0.15s ease',
+            }}
+            title={onDragCommit ? `Drop commit here to cherry-pick onto ${branch.name}` : undefined}
+          >
+            {branch.name}
+          </div>
+        );
+      })}
     </div>
   );
 };

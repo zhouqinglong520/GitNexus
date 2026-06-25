@@ -312,6 +312,10 @@ export interface Preferences {
   notifications: NotificationPreferences;
   security: SecurityPreferences;
   network: NetworkPreferences;
+  ai: AIPreferences;
+  code_hosting: CodeHostingPreferences;
+  mirror: MirrorPreferences;
+  commit: CommitPreferences;
 }
 
 export interface GeneralPreferences {
@@ -324,6 +328,8 @@ export interface GeneralPreferences {
   show_ignored_files: boolean;
 }
 
+export type DensityLevel = 'comfortable' | 'default' | 'compact';
+
 export interface AppearancePreferences {
   theme: 'catppuccin-mocha' | 'catppuccin-latte' | 'dark' | 'light';
   font_family: string;
@@ -331,7 +337,7 @@ export interface AppearancePreferences {
   line_height: number;
   show_commit_graph: boolean;
   show_avatars: boolean;
-  compact_mode: boolean;
+  density: DensityLevel;
   diff_mode: 'unified' | 'side-by-side';
   tab_size: number;
 }
@@ -374,6 +380,41 @@ export interface NetworkPreferences {
   proxy_password: string;
   ssl_verify: boolean;
   connection_timeout: number; // seconds
+}
+
+export interface AIPreferences {
+  provider: 'deepseek' | 'qwen' | 'wenxin' | 'openai' | 'ollama' | 'custom';
+  api_url: string;
+  api_key: string;
+  model_name: string;
+  extra_prompt: string;
+  read_key_from_env: boolean;
+}
+
+export interface CodeHostingPreferences {
+  gitee_token: string;
+  github_token: string;
+  gitlab_token: string;
+  coding_token: string;
+  webee_token: string;
+  codehub_token: string;
+}
+
+export interface MirrorPreferences {
+  enabled: boolean;
+  source: 'auto' | 'gitee' | 'fastgit' | 'ghproxy' | 'kkgithub' | 'custom';
+  custom_url: string;
+  clone_only: boolean;
+  exclude_domains: string[];
+}
+
+export interface CommitPreferences {
+  conventional_commits: boolean;
+  commit_types: CommitType[];
+  history_count: number;
+  commit_template: string;
+  check_trailing_whitespace: boolean;
+  check_bom: boolean;
 }
 
 // ============================================================

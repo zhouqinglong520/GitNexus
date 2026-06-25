@@ -1,5 +1,9 @@
 mod commands;
+pub mod ai;
+pub mod avatar;
 pub mod git;
+pub mod gitee;
+pub mod mirror;
 pub mod models;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -40,6 +44,9 @@ pub fn run() {
             commands::git_unstage,
             commands::git_stage_all,
             commands::git_unstage_all,
+            // Hunk staging
+            commands::git_stage_hunk,
+            commands::git_unstage_hunk,
             // Push
             commands::git_push,
             // Pull
@@ -116,6 +123,7 @@ pub fn run() {
             commands::git_apply_patch,
             // Interactive rebase
             commands::git_start_interactive_rebase,
+            commands::git_start_interactive_rebase_with_todos,
             // File history / commit children
             commands::git_get_file_history,
             commands::git_get_commit_children,
@@ -160,6 +168,36 @@ pub fn run() {
             // Repo Config
             commands::git_get_repo_config,
             commands::git_save_repo_config,
+            // AI
+            commands::ai_generate_commit_message,
+            commands::ai_fetch_models,
+            // PR / Platform
+            commands::detect_platform,
+            commands::create_pull_request,
+            // Mirror
+            commands::test_mirror_latency,
+            commands::get_mirror_url,
+            // GC
+            commands::git_run_gc,
+            // Scan repositories
+            commands::git_scan_repositories,
+            // Diff revision files / query file content
+            commands::git_diff_revision_files,
+            commands::git_query_file_content,
+            // Submodule additional
+            commands::git_deinit_submodule,
+            commands::git_set_submodule_branch,
+            commands::git_change_submodule_url,
+            // Branch track status
+            commands::git_query_track_status,
+            // Rebase edit message
+            commands::git_rebase_edit_message,
+            // Platform additional
+            commands::git_find_git_executable,
+            commands::git_find_external_tools,
+            // Avatar
+            commands::get_avatar,
+            commands::clear_avatar_cache,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

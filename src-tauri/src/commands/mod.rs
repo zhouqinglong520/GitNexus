@@ -175,6 +175,16 @@ pub fn git_unstage_all(path: String) -> Result<(), String> {
     git::commit::unstage_all(&path).map_err(|e| e.to_string())
 }
 
+#[tauri::command]
+pub fn git_stage_hunk(path: String, file: String, patch_text: String) -> Result<(), String> {
+    git::commit::stage_hunk(&path, &file, &patch_text).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn git_unstage_hunk(path: String, file: String, patch_text: String) -> Result<(), String> {
+    git::commit::unstage_hunk(&path, &file, &patch_text).map_err(|e| e.to_string())
+}
+
 // ============================================================
 // Push commands
 // ============================================================
@@ -669,6 +679,21 @@ pub async fn git_start_interactive_rebase(
     .map_err(|e| e.to_string())
 }
 
+#[tauri::command]
+pub async fn git_start_interactive_rebase_with_todos(
+    path: String,
+    onto: String,
+    todo_text: String,
+    app_handle: tauri::AppHandle,
+) -> Result<(), String> {
+    let app = app_handle.clone();
+    git::rebase::start_interactive_rebase_with_todos(&path, &onto, &todo_text, move |line| {
+        let _ = app.emit("git-rebase-progress", line);
+    })
+    .await
+    .map_err(|e| e.to_string())
+}
+
 // ============================================================
 // File history / commit children commands
 // ============================================================
@@ -938,4 +963,199 @@ pub fn git_save_repo_config(
     config: crate::git::custom_action::RepoConfig,
 ) -> Result<(), String> {
     crate::git::custom_action::save_repo_config(&path, &config).map_err(|e| e.to_string())
+}
+
+// ============================================================
+// GC commands
+// ============================================================
+
+#[tauri::command]
+pub fn git_run_gc(path: String, aggressive: bool, prune: bool) -> Result<String, String> {
+    git::gc::run_gc(&path, aggressive, prune).map_err(|e| e.to_string())
+}
+
+// ============================================================
+// Scan repositories command
+// ============================================================
+
+#[tauri::command]
+pub fn git_scan_repositories(directory: String, max_depth: u32) -> Result<Vec<ScannedRepo>, String> {
+    git::repository::scan_repositories(&directory, max_depth).map_err(|e| e.to_string())
+}
+
+// ============================================================
+// Diff revision files / query file content commands
+// ============================================================
+
+#[tauri::command]
+pub fn git_diff_revision_files(
+    path: String,
+    old_ref: String,
+    new_ref: String,
+) -> Result<Vec<DiffFile>, String> {
+    git::diff::diff_revision_files(&path, &old_ref, &new_ref).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn git_query_file_content(
+    path: String,
+    ref_name: String,
+    file_path: String,
+) -> Result<String, String> {
+    git::diff::query_file_content(&path, &ref_name, &file_path).map_err(|e| e.to_string())
+}
+
+// ============================================================
+// Submodule additional commands
+// ============================================================
+
+#[tauri::command]
+pub fn git_deinit_submodule(path: String, name: String) -> Result<(), String> {
+    git::submodule::deinit_submodule(&path, &name).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn git_set_submodule_branch(path: String, name: String, branch: String) -> Result<(), String> {
+    git::submodule::set_submodule_branch(&path, &name, &branch).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn git_change_submodule_url(path: String, name: String, url: String) -> Result<(), String> {
+    git::submodule::change_submodule_url(&path, &name, &url).map_err(|e| e.to_string())
+}
+
+// ============================================================
+// Branch track status command
+// ============================================================
+
+#[tauri::command]
+pub fn git_query_track_status(path: String, branch: String) -> Result<TrackStatus, String> {
+    git::branch::query_track_status(&path, &branch).map_err(|e| e.to_string())
+}
+
+// ============================================================
+// Rebase edit message command
+// ============================================================
+
+#[tauri::command]
+pub fn git_rebase_edit_message(path: String, message: String) -> Result<(), String> {
+    git::rebase::rebase_edit_message(&path, message).map_err(|e| e.to_string())
+}
+
+// ============================================================
+// Platform additional commands
+// ============================================================
+
+#[tauri::command]
+pub fn git_find_git_executable() -> Result<String, String> {
+    git::platform::find_git_executable().map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn git_find_external_tools() -> Result<Vec<ExternalTool>, String> {
+    git::platform::find_external_tools().map_err(|e| e.to_string())
+}
+
+// ============================================================
+// AI commands
+// ============================================================
+
+#[tauri::command]
+pub async fn ai_generate_commit_message(
+    repo_path: String,
+    diff_text: String,
+    provider: String,
+    api_url: String,
+    api_key: String,
+    model: String,
+    extra_prompt: String,
+) -> Result<String, String> {
+    let config = crate::ai::AIServiceConfig {
+        provider,
+        api_url,
+        api_key,
+        model,
+        extra_prompt,
+    };
+    crate::ai::generate_commit_message(&repo_path, &diff_text, &config).await
+}
+
+#[tauri::command]
+pub async fn ai_fetch_models(
+    provider: String,
+    api_url: String,
+    api_key: String,
+) -> Result<Vec<String>, String> {
+    let config = crate::ai::AIServiceConfig {
+        provider,
+        api_url,
+        api_key,
+        model: String::new(),
+        extra_prompt: String::new(),
+    };
+    crate::ai::fetch_models(&config).await
+}
+
+// ============================================================
+// PR commands
+// ============================================================
+
+#[tauri::command]
+pub fn detect_platform(remote_url: String) -> Result<String, String> {
+    crate::gitee::detect_platform(&remote_url)
+}
+
+#[tauri::command]
+pub async fn create_pull_request(
+    platform: String,
+    api_url: String,
+    token: String,
+    owner: String,
+    repo: String,
+    title: String,
+    body: String,
+    head: String,
+    base: String,
+) -> Result<String, String> {
+    let config = crate::gitee::PRConfig {
+        platform,
+        api_url,
+        token,
+        owner,
+        repo,
+        title,
+        body,
+        head,
+        base,
+    };
+    crate::gitee::create_pull_request(&config).await
+}
+
+// ============================================================
+// Mirror commands
+// ============================================================
+
+#[tauri::command]
+pub async fn test_mirror_latency(url: String) -> Result<u64, String> {
+    crate::mirror::test_mirror_latency(&url).await
+}
+
+#[tauri::command]
+pub fn get_mirror_url(original_url: String, mirror_type: String) -> Result<String, String> {
+    crate::mirror::get_mirror_url(&original_url, &mirror_type)
+}
+
+// ============================================================
+// Avatar commands
+// ============================================================
+
+#[tauri::command]
+pub fn get_avatar(email: String, name: String) -> Result<Option<String>, String> {
+    Ok(crate::avatar::get_avatar_url(&email, &name))
+}
+
+#[tauri::command]
+pub fn clear_avatar_cache() -> Result<(), String> {
+    // 简化方案：头像通过 URL 直接获取，无需本地缓存清理
+    Ok(())
 }

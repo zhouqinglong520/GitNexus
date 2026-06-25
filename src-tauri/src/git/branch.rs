@@ -1,5 +1,5 @@
 use crate::git::command::{GitCommand, GitError};
-use crate::models::Branch;
+use crate::models::{Branch, TrackStatus};
 
 /// List all branches (local + remote).
 pub fn list_branches(path: &str) -> Result<Vec<Branch>, GitError> {
@@ -92,4 +92,60 @@ pub fn set_upstream(path: &str, branch: &str, remote_branch: &str) -> Result<(),
     let git = GitCommand::new(path);
     git.read_to_end(&["branch", "--set-upstream-to", remote_branch, branch])?;
     Ok(())
+}
+
+/// Query the tracking status of a branch (ahead/behind counts relative to upstream).
+pub fn query_track_status(path: &str, branch: &str) -> Result<TrackStatus, GitError> {
+    let git = GitCommand::new(path);
+
+    // Get the upstream reference for the branch
+    let upstream_output = git.read_to_end(&["rev-parse", "--abbrev-ref", &format!("{}@{{upstream}}", branch)]);
+
+    let (upstream, is_tracking) = match upstream_output {
+        Ok(u) => {
+            let u = u.trim().to_string();
+            if u.is_empty() || u.contains("unknown") {
+                (None, false)
+            } else {
+                (Some(u), true)
+            }
+        }
+        Err(_) => (None, false),
+    };
+
+    if !is_tracking {
+        return Ok(TrackStatus {
+            branch: branch.to_string(),
+            upstream: None,
+            is_tracking: false,
+            ahead: 0,
+            behind: 0,
+        });
+    }
+
+    // Get ahead/behind counts
+    let count_output = git.read_to_end(&[
+        "rev-list",
+        "--left-right",
+        "--count",
+        &format!("{}...@{{upstream}}", branch),
+    ]);
+
+    let (ahead, behind) = match count_output {
+        Ok(counts) => {
+            let parts: Vec<&str> = counts.trim().split_whitespace().collect();
+            let a = parts.first().and_then(|s| s.parse::<u32>().ok()).unwrap_or(0);
+            let b = parts.get(1).and_then(|s| s.parse::<u32>().ok()).unwrap_or(0);
+            (a, b)
+        }
+        Err(_) => (0, 0),
+    };
+
+    Ok(TrackStatus {
+        branch: branch.to_string(),
+        upstream,
+        is_tracking: true,
+        ahead,
+        behind,
+    })
 }

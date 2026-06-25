@@ -32,6 +32,14 @@ import {
   Lock,
   Unlock,
   Eraser,
+  Bot,
+  GitFork,
+  Zap,
+  MessageSquare,
+  Eye,
+  EyeOff,
+  TestTube,
+  ScanSearch,
 } from 'lucide-react';
 import { usePreferencesStore } from '@/stores/preferences-store';
 import { useGitStore } from '@/stores/git-store';
@@ -55,12 +63,20 @@ type SettingsTab =
   | 'lfs'
   | 'command_log'
   | 'custom_actions'
+  | 'ai'
+  | 'code_hosting'
+  | 'mirror'
+  | 'commit'
   | 'about';
 
 const TABS: { id: SettingsTab; labelKey: string; icon: React.ReactNode }[] = [
   { id: 'general', labelKey: 'settings.general', icon: <SettingsIcon size={16} /> },
   { id: 'appearance', labelKey: 'settings.appearance', icon: <Palette size={16} /> },
   { id: 'git', labelKey: 'settings.git', icon: <GitBranch size={16} /> },
+  { id: 'ai', labelKey: 'settings.ai', icon: <Bot size={16} /> },
+  { id: 'code_hosting', labelKey: 'settings.code_hosting', icon: <GitFork size={16} /> },
+  { id: 'mirror', labelKey: 'settings.mirror', icon: <Zap size={16} /> },
+  { id: 'commit', labelKey: 'settings.commit', icon: <MessageSquare size={16} /> },
   { id: 'integration', labelKey: 'settings.integration', icon: <Terminal size={16} /> },
   { id: 'keybindings', labelKey: 'settings.keybindings', icon: <Keyboard size={16} /> },
   { id: 'notifications', labelKey: 'settings.notifications', icon: <Bell size={16} /> },
@@ -145,6 +161,11 @@ export const Settings: React.FC = () => {
   const updateNotifications = usePreferencesStore((s) => s.updateNotifications);
   const updateSecurity = usePreferencesStore((s) => s.updateSecurity);
   const updateNetwork = usePreferencesStore((s) => s.updateNetwork);
+  const updateAI = usePreferencesStore((s) => s.updateAI);
+  const updateCodeHosting = usePreferencesStore((s) => s.updateCodeHosting);
+  const updateMirror = usePreferencesStore((s) => s.updateMirror);
+  const updateCommit = usePreferencesStore((s) => s.updateCommit);
+  const updateDensity = usePreferencesStore((s) => s.updateDensity);
   const resetToDefaults = usePreferencesStore((s) => s.resetToDefaults);
 
   const getConfig = useGitStore((s) => s.getConfig);
@@ -202,6 +223,32 @@ export const Settings: React.FC = () => {
   const [lfsLocksLoading, setLfsLocksLoading] = useState(false);
   const [lfsOperating, setLfsOperating] = useState(false);
   const [lfsOperatingAction, setLfsOperatingAction] = useState('');
+
+  // AI service state
+  const [aiShowApiKey, setAiShowApiKey] = useState(false);
+  const [aiModels, setAiModels] = useState<string[]>([]);
+  const [aiModelsLoading, setAiModelsLoading] = useState(false);
+  const [aiTestMessage, setAiTestMessage] = useState('');
+  const [aiTestLoading, setAiTestLoading] = useState(false);
+
+  // Mirror state
+  const [mirrorExcludeInput, setMirrorExcludeInput] = useState('');
+  const [mirrorLatencyResult, setMirrorLatencyResult] = useState<Record<string, number>>({});
+  const [mirrorLatencyLoading, setMirrorLatencyLoading] = useState(false);
+
+  // Commit types JSON editor state
+  const [commitTypesJson, setCommitTypesJson] = useState('');
+  const [commitTypesJsonError, setCommitTypesJsonError] = useState('');
+
+  // AI provider default URL mapping
+  const AI_PROVIDER_URLS: Record<string, string> = {
+    deepseek: 'https://api.deepseek.com/v1',
+    qwen: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
+    wenxin: 'https://aip.baidubce.com/rpc/2.0/ai_custom/v1',
+    openai: 'https://api.openai.com/v1',
+    ollama: 'http://localhost:11434/v1',
+    custom: '',
+  };
 
   // Load git config values when switching to git tab
   useEffect(() => {
@@ -324,6 +371,95 @@ export const Settings: React.FC = () => {
       addNotification({ type: 'error', title: 'Failed to unlock file', message: String(err) });
     }
   }, [lfsUnlock, addNotification, handleLfsRefreshLocks]);
+
+  // AI service handlers
+  const handleAIProviderChange = useCallback((provider: string) => {
+    updateAI({ provider: provider as any, api_url: AI_PROVIDER_URLS[provider] || '' });
+    setAiModels([]);
+  }, [updateAI]);
+
+  const handleAIFetchModels = useCallback(async () => {
+    setAiModelsLoading(true);
+    try {
+      const models = await invoke<string[]>('ai_fetch_models', {
+        provider: preferences.ai.provider,
+        apiUrl: preferences.ai.api_url,
+        apiKey: preferences.ai.api_key,
+      });
+      setAiModels(models);
+    } catch (err) {
+      addNotification({ type: 'error', title: 'Failed to fetch models', message: String(err) });
+      setAiModels([]);
+    } finally {
+      setAiModelsLoading(false);
+    }
+  }, [preferences.ai, addNotification]);
+
+  const handleAITestGenerate = useCallback(async () => {
+    setAiTestLoading(true);
+    setAiTestMessage('');
+    try {
+      const message = await invoke<string>('ai_generate_commit_message', {
+        provider: preferences.ai.provider,
+        apiUrl: preferences.ai.api_url,
+        apiKey: preferences.ai.api_key,
+        model: preferences.ai.model_name,
+        extraPrompt: preferences.ai.extra_prompt,
+        diff: 'test diff content',
+      });
+      setAiTestMessage(message);
+    } catch (err) {
+      setAiTestMessage(`Error: ${err}`);
+    } finally {
+      setAiTestLoading(false);
+    }
+  }, [preferences.ai]);
+
+  // Mirror handlers
+  const handleMirrorAddExclude = useCallback(() => {
+    const trimmed = mirrorExcludeInput.trim();
+    if (!trimmed) return;
+    if (preferences.mirror.exclude_domains.includes(trimmed)) return;
+    updateMirror({ exclude_domains: [...preferences.mirror.exclude_domains, trimmed] });
+    setMirrorExcludeInput('');
+  }, [mirrorExcludeInput, preferences.mirror.exclude_domains, updateMirror]);
+
+  const handleMirrorRemoveExclude = useCallback((domain: string) => {
+    updateMirror({ exclude_domains: preferences.mirror.exclude_domains.filter((d) => d !== domain) });
+  }, [preferences.mirror.exclude_domains, updateMirror]);
+
+  const handleMirrorTestLatency = useCallback(async () => {
+    setMirrorLatencyLoading(true);
+    setMirrorLatencyResult({});
+    try {
+      const result = await invoke<Record<string, number>>('test_mirror_latency', {
+        enabled: preferences.mirror.enabled,
+        source: preferences.mirror.source,
+        customUrl: preferences.mirror.custom_url,
+      });
+      setMirrorLatencyResult(result);
+    } catch (err) {
+      addNotification({ type: 'error', title: 'Mirror latency test failed', message: String(err) });
+    } finally {
+      setMirrorLatencyLoading(false);
+    }
+  }, [preferences.mirror, addNotification]);
+
+  // Commit types JSON handlers
+  const handleCommitTypesJsonChange = useCallback((json: string) => {
+    setCommitTypesJson(json);
+    try {
+      const parsed = JSON.parse(json);
+      if (Array.isArray(parsed)) {
+        setCommitTypesJsonError('');
+        updateCommit({ commit_types: parsed });
+      } else {
+        setCommitTypesJsonError('JSON must be an array');
+      }
+    } catch {
+      setCommitTypesJsonError('Invalid JSON');
+    }
+  }, [updateCommit]);
 
   const loadGitConfig = useCallback(async () => {
     setGitConfigLoading(true);
@@ -701,11 +837,22 @@ export const Settings: React.FC = () => {
                 onChange={(v) => updateAppearance({ show_avatars: v })}
               />
             </SettingRow>
-            <SettingRow label="Compact Mode" description="Reduce spacing for denser information display">
-              <ToggleSwitch
-                checked={preferences.appearance.compact_mode}
-                onChange={(v) => updateAppearance({ compact_mode: v })}
-              />
+            <SettingRow label={t('settings.density')} description={t('settings.densityDesc')}>
+              <div className="flex gap-1">
+                {(['comfortable', 'default', 'compact'] as const).map((level) => (
+                  <button
+                    key={level}
+                    onClick={() => updateDensity(level)}
+                    className="px-3 py-1 rounded text-xs font-medium transition-colors"
+                    style={{
+                      backgroundColor: preferences.appearance.density === level ? 'var(--accent-blue)' : 'var(--bg-overlay)',
+                      color: preferences.appearance.density === level ? 'var(--bg-base)' : 'var(--text-secondary)',
+                    }}
+                  >
+                    {t(`settings.density_${level}`)}
+                  </button>
+                ))}
+              </div>
             </SettingRow>
             <SettingRow label="Diff Mode" description="Default diff display mode">
               <select
@@ -2088,6 +2235,490 @@ export const Settings: React.FC = () => {
                 </div>
               </div>
             )}
+          </div>
+        );
+
+      // ============================================================
+      // AI Service Tab
+      // ============================================================
+      case 'ai':
+        return (
+          <div className="space-y-6">
+            <SettingsSection title={t('settings.ai')}>
+              <SettingRow label={t('settings.aiProvider')} description={t('settings.aiProviderDesc')}>
+                <select
+                  value={preferences.ai.provider}
+                  onChange={(e) => handleAIProviderChange(e.target.value)}
+                  className="px-2 py-1 rounded border text-sm"
+                  style={{ backgroundColor: 'var(--bg-surface)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}
+                >
+                  <option value="deepseek">DeepSeek</option>
+                  <option value="qwen">{t('settings.aiQwen')}</option>
+                  <option value="wenxin">{t('settings.aiWenxin')}</option>
+                  <option value="openai">OpenAI</option>
+                  <option value="ollama">Ollama</option>
+                  <option value="custom">{t('settings.aiCustom')}</option>
+                </select>
+              </SettingRow>
+
+              <SettingRow label="API URL" description={t('settings.aiUrlDesc')}>
+                <input
+                  type="text"
+                  value={preferences.ai.api_url}
+                  onChange={(e) => updateAI({ api_url: e.target.value })}
+                  className="px-2 py-1 rounded border text-sm flex-1"
+                  style={{ backgroundColor: 'var(--bg-surface)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}
+                  placeholder="https://api.example.com/v1"
+                />
+              </SettingRow>
+
+              <SettingRow label="API Key" description={t('settings.aiKeyDesc')}>
+                <div className="flex items-center gap-2 flex-1">
+                  <input
+                    type={aiShowApiKey ? 'text' : 'password'}
+                    value={preferences.ai.api_key}
+                    onChange={(e) => updateAI({ api_key: e.target.value })}
+                    className="px-2 py-1 rounded border text-sm flex-1"
+                    style={{ backgroundColor: 'var(--bg-surface)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}
+                    placeholder="sk-..."
+                    autoComplete="off"
+                  />
+                  <button
+                    onClick={() => setAiShowApiKey(!aiShowApiKey)}
+                    className="p-1.5 rounded transition-colors"
+                    style={{ color: 'var(--text-subtle)' }}
+                    title={aiShowApiKey ? t('settings.hideKey') : t('settings.showKey')}
+                  >
+                    {aiShowApiKey ? <EyeOff size={14} /> : <Eye size={14} />}
+                  </button>
+                </div>
+              </SettingRow>
+
+              <SettingRow label={t('settings.aiModel')} description={t('settings.aiModelDesc')}>
+                <input
+                  type="text"
+                  value={preferences.ai.model_name}
+                  onChange={(e) => updateAI({ model_name: e.target.value })}
+                  className="px-2 py-1 rounded border text-sm flex-1"
+                  style={{ backgroundColor: 'var(--bg-surface)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}
+                  placeholder="gpt-3.5-turbo"
+                />
+              </SettingRow>
+
+              <SettingRow label={t('settings.aiExtraPrompt')} description={t('settings.aiExtraPromptDesc')}>
+                <textarea
+                  value={preferences.ai.extra_prompt}
+                  onChange={(e) => updateAI({ extra_prompt: e.target.value })}
+                  className="w-full px-2 py-1.5 rounded border text-sm font-mono"
+                  style={{ backgroundColor: 'var(--bg-surface)', borderColor: 'var(--border-color)', color: 'var(--text-primary)', minHeight: 60, resize: 'vertical' }}
+                  placeholder={t('settings.aiExtraPromptPlaceholder')}
+                  rows={3}
+                />
+              </SettingRow>
+
+              <SettingRow label={t('settings.aiReadKeyFromEnv')} description={t('settings.aiReadKeyFromEnvDesc')}>
+                <ToggleSwitch
+                  checked={preferences.ai.read_key_from_env}
+                  onChange={(v) => updateAI({ read_key_from_env: v })}
+                />
+              </SettingRow>
+            </SettingsSection>
+
+            {/* AI Actions */}
+            <SettingsSection title={t('settings.aiActions')}>
+              <div className="flex items-center gap-2 mb-3">
+                <button
+                  onClick={handleAIFetchModels}
+                  disabled={aiModelsLoading}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-medium transition-colors disabled:opacity-50"
+                  style={{ backgroundColor: 'var(--accent-blue)', color: 'var(--bg-base)' }}
+                >
+                  {aiModelsLoading ? <Loader2 size={12} className="animate-spin" /> : <ScanSearch size={12} />}
+                  {t('settings.aiFetchModels')}
+                </button>
+                <button
+                  onClick={handleAITestGenerate}
+                  disabled={aiTestLoading}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-medium transition-colors disabled:opacity-50"
+                  style={{ backgroundColor: 'var(--accent-green)', color: 'var(--bg-base)' }}
+                >
+                  {aiTestLoading ? <Loader2 size={12} className="animate-spin" /> : <TestTube size={12} />}
+                  {t('settings.aiTestGenerate')}
+                </button>
+              </div>
+
+              {/* Models list */}
+              {aiModels.length > 0 && (
+                <div className="mb-3">
+                  <div className="text-xs mb-1.5" style={{ color: 'var(--text-subtle)' }}>
+                    {t('settings.aiAvailableModels')} ({aiModels.length})
+                  </div>
+                  <div
+                    className="rounded overflow-hidden max-h-32 overflow-y-auto"
+                    style={{ border: '1px solid var(--border-color)' }}
+                  >
+                    {aiModels.map((model, idx) => (
+                      <button
+                        key={idx}
+                        onClick={() => updateAI({ model_name: model })}
+                        className="w-full text-left px-3 py-1.5 text-xs font-mono transition-colors"
+                        style={{
+                          backgroundColor: preferences.ai.model_name === model ? 'rgba(137, 180, 250, 0.1)' : 'var(--bg-surface)',
+                          color: preferences.ai.model_name === model ? 'var(--accent-blue)' : 'var(--text-primary)',
+                          borderBottom: '1px solid var(--border-color)',
+                        }}
+                      >
+                        {model}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Test message result */}
+              {aiTestMessage && (
+                <div
+                  className="rounded overflow-hidden"
+                  style={{ border: '1px solid var(--border-color)' }}
+                >
+                  <div
+                    className="px-3 py-2 text-xs font-medium"
+                    style={{ backgroundColor: 'var(--bg-overlay)', color: 'var(--text-secondary)' }}
+                  >
+                    {t('settings.aiTestResult')}
+                  </div>
+                  <pre
+                    className="p-3 text-xs font-mono whitespace-pre-wrap max-h-32 overflow-y-auto"
+                    style={{ color: 'var(--text-primary)', backgroundColor: 'var(--bg-surface)' }}
+                  >
+                    {aiTestMessage}
+                  </pre>
+                </div>
+              )}
+            </SettingsSection>
+          </div>
+        );
+
+      // ============================================================
+      // Code Hosting Tab
+      // ============================================================
+      case 'code_hosting':
+        return (
+          <div className="space-y-6">
+            <SettingsSection title={t('settings.code_hosting')}>
+              <div className="text-xs mb-3" style={{ color: 'var(--text-subtle)' }}>
+                {t('settings.codeHostingDesc')}
+              </div>
+
+              {([
+                { key: 'gitee_token' as const, label: 'Gitee', icon: <GitFork size={14} style={{ color: 'var(--accent-red)' }} /> },
+                { key: 'github_token' as const, label: 'GitHub', icon: <GitBranch size={14} style={{ color: 'var(--text-primary)' }} /> },
+                { key: 'gitlab_token' as const, label: 'GitLab', icon: <GitFork size={14} style={{ color: 'var(--accent-orange)' }} /> },
+                { key: 'coding_token' as const, label: 'Coding', icon: <GitFork size={14} style={{ color: 'var(--accent-blue)' }} /> },
+                { key: 'webee_token' as const, label: t('settings.webee'), icon: <GitFork size={14} style={{ color: 'var(--accent-yellow)' }} /> },
+                { key: 'codehub_token' as const, label: 'CodeHub', icon: <GitFork size={14} style={{ color: 'var(--accent-teal)' }} /> },
+              ]).map((platform) => (
+                <div
+                  key={platform.key}
+                  className="flex items-center gap-3 px-4 py-3 rounded"
+                  style={{ backgroundColor: 'var(--bg-surface)' }}
+                >
+                  {platform.icon}
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
+                      {platform.label}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0" style={{ minWidth: 300 }}>
+                    <input
+                      type="password"
+                      value={preferences.code_hosting[platform.key]}
+                      onChange={(e) => updateCodeHosting({ [platform.key]: e.target.value })}
+                      className="flex-1 px-2 py-1 rounded border text-xs"
+                      style={{ backgroundColor: 'var(--bg-overlay)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}
+                      placeholder={`${platform.label} Token`}
+                      autoComplete="off"
+                    />
+                    <button
+                      onClick={() => addNotification({ type: 'success', title: `${platform.label} token saved` })}
+                      className="flex items-center gap-1 px-2 py-1 rounded text-xs font-medium transition-colors"
+                      style={{ backgroundColor: 'var(--accent-green)', color: 'var(--bg-base)' }}
+                    >
+                      <Save size={12} />
+                      {t('common.save')}
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </SettingsSection>
+
+            {/* Auto detect remote platform */}
+            <SettingsSection title={t('settings.autoDetect')}>
+              <div className="text-xs mb-3" style={{ color: 'var(--text-subtle)' }}>
+                {t('settings.autoDetectDesc')}
+              </div>
+              <button
+                onClick={async () => {
+                  try {
+                    const repoPath = useGitStore.getState().repoPath;
+                    if (!repoPath) {
+                      addNotification({ type: 'warning', title: 'No repository open' });
+                      return;
+                    }
+                    const remotes = useGitStore.getState().remotes;
+                    const detectedPlatforms = new Set<string>();
+                    for (const remote of remotes) {
+                      const url = remote.url.toLowerCase();
+                      if (url.includes('gitee.com')) detectedPlatforms.add('Gitee');
+                      else if (url.includes('github.com')) detectedPlatforms.add('GitHub');
+                      else if (url.includes('gitlab.com')) detectedPlatforms.add('GitLab');
+                      else if (url.includes('coding.net')) detectedPlatforms.add('Coding');
+                    }
+                    if (detectedPlatforms.size > 0) {
+                      addNotification({
+                        type: 'success',
+                        title: t('settings.detectedPlatforms'),
+                        message: Array.from(detectedPlatforms).join(', '),
+                      });
+                    } else {
+                      addNotification({ type: 'info', title: t('settings.noPlatformsDetected') });
+                    }
+                  } catch (err) {
+                    addNotification({ type: 'error', title: 'Detection failed', message: String(err) });
+                  }
+                }}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-medium transition-colors"
+                style={{ backgroundColor: 'var(--accent-blue)', color: 'var(--bg-base)' }}
+              >
+                <ScanSearch size={12} />
+                {t('settings.detectRemotePlatform')}
+              </button>
+            </SettingsSection>
+          </div>
+        );
+
+      // ============================================================
+      // Mirror Tab
+      // ============================================================
+      case 'mirror':
+        return (
+          <div className="space-y-6">
+            <SettingsSection title={t('settings.mirror')}>
+              <SettingRow label={t('settings.mirrorEnable')} description={t('settings.mirrorEnableDesc')}>
+                <ToggleSwitch
+                  checked={preferences.mirror.enabled}
+                  onChange={(v) => updateMirror({ enabled: v })}
+                />
+              </SettingRow>
+
+              <SettingRow label={t('settings.mirrorSource')} description={t('settings.mirrorSourceDesc')}>
+                <select
+                  value={preferences.mirror.source}
+                  onChange={(e) => updateMirror({ source: e.target.value as any })}
+                  className="px-2 py-1 rounded border text-sm"
+                  style={{ backgroundColor: 'var(--bg-surface)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}
+                >
+                  <option value="auto">{t('settings.mirrorAuto')}</option>
+                  <option value="gitee">Gitee</option>
+                  <option value="fastgit">FastGit</option>
+                  <option value="ghproxy">GhProxy</option>
+                  <option value="kkgithub">KKGitHub</option>
+                  <option value="custom">{t('settings.mirrorCustom')}</option>
+                </select>
+              </SettingRow>
+
+              {preferences.mirror.source === 'custom' && (
+                <SettingRow label={t('settings.mirrorCustomUrl')} description={t('settings.mirrorCustomUrlDesc')}>
+                  <input
+                    type="text"
+                    value={preferences.mirror.custom_url}
+                    onChange={(e) => updateMirror({ custom_url: e.target.value })}
+                    className="px-2 py-1 rounded border text-sm flex-1"
+                    style={{ backgroundColor: 'var(--bg-surface)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}
+                    placeholder="https://mirror.example.com"
+                  />
+                </SettingRow>
+              )}
+
+              <SettingRow label={t('settings.mirrorCloneOnly')} description={t('settings.mirrorCloneOnlyDesc')}>
+                <ToggleSwitch
+                  checked={preferences.mirror.clone_only}
+                  onChange={(v) => updateMirror({ clone_only: v })}
+                />
+              </SettingRow>
+            </SettingsSection>
+
+            {/* Exclude domains */}
+            <SettingsSection title={t('settings.mirrorExcludeDomains')}>
+              <div className="text-xs mb-3" style={{ color: 'var(--text-subtle)' }}>
+                {t('settings.mirrorExcludeDomainsDesc')}
+              </div>
+
+              <div className="space-y-1.5 mb-3">
+                {preferences.mirror.exclude_domains.map((domain) => (
+                  <div
+                    key={domain}
+                    className="flex items-center gap-2 px-3 py-2 rounded"
+                    style={{ backgroundColor: 'var(--bg-surface)' }}
+                  >
+                    <span className="text-xs font-mono flex-1 truncate" style={{ color: 'var(--text-primary)' }}>
+                      {domain}
+                    </span>
+                    <button
+                      onClick={() => handleMirrorRemoveExclude(domain)}
+                      className="p-1 rounded transition-colors"
+                      style={{ color: 'var(--accent-red)' }}
+                    >
+                      <X size={12} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  value={mirrorExcludeInput}
+                  onChange={(e) => setMirrorExcludeInput(e.target.value)}
+                  className="flex-1 px-2 py-1 rounded border text-xs"
+                  style={{ backgroundColor: 'var(--bg-surface)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}
+                  placeholder="e.g., github.com"
+                  onKeyDown={(e) => { if (e.key === 'Enter') handleMirrorAddExclude(); }}
+                />
+                <button
+                  onClick={handleMirrorAddExclude}
+                  disabled={!mirrorExcludeInput.trim()}
+                  className="flex items-center gap-1 px-2 py-1 rounded text-xs font-medium transition-colors disabled:opacity-50"
+                  style={{ backgroundColor: 'var(--accent-blue)', color: 'var(--bg-base)' }}
+                >
+                  <Plus size={12} />
+                  {t('common.add')}
+                </button>
+              </div>
+            </SettingsSection>
+
+            {/* Latency test */}
+            <SettingsSection title={t('settings.mirrorLatencyTest')}>
+              <div className="flex items-center gap-2 mb-3">
+                <button
+                  onClick={handleMirrorTestLatency}
+                  disabled={mirrorLatencyLoading}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-medium transition-colors disabled:opacity-50"
+                  style={{ backgroundColor: 'var(--accent-blue)', color: 'var(--bg-base)' }}
+                >
+                  {mirrorLatencyLoading ? <Loader2 size={12} className="animate-spin" /> : <Zap size={12} />}
+                  {t('settings.mirrorTestLatency')}
+                </button>
+              </div>
+
+              {Object.keys(mirrorLatencyResult).length > 0 && (
+                <div className="space-y-1.5">
+                  {Object.entries(mirrorLatencyResult).map(([name, latency]) => (
+                    <div
+                      key={name}
+                      className="flex items-center gap-3 px-3 py-2 rounded"
+                      style={{ backgroundColor: 'var(--bg-surface)' }}
+                    >
+                      <span className="text-xs font-medium flex-1" style={{ color: 'var(--text-primary)' }}>
+                        {name}
+                      </span>
+                      <span
+                        className="text-xs font-mono"
+                        style={{
+                          color: latency < 200 ? 'var(--accent-green)' : latency < 500 ? 'var(--accent-yellow)' : 'var(--accent-red)',
+                        }}
+                      >
+                        {latency}ms
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </SettingsSection>
+          </div>
+        );
+
+      // ============================================================
+      // Commit Settings Tab
+      // ============================================================
+      case 'commit':
+        return (
+          <div className="space-y-6">
+            <SettingsSection title={t('settings.commit')}>
+              <SettingRow label={t('settings.conventionalCommits')} description={t('settings.conventionalCommitsDesc')}>
+                <ToggleSwitch
+                  checked={preferences.commit.conventional_commits}
+                  onChange={(v) => updateCommit({ conventional_commits: v })}
+                />
+              </SettingRow>
+
+              <SettingRow label={t('settings.commitHistoryCount')} description={t('settings.commitHistoryCountDesc')}>
+                <input
+                  type="number"
+                  value={preferences.commit.history_count}
+                  onChange={(e) => updateCommit({ history_count: Math.max(1, Math.min(50, Number(e.target.value))) })}
+                  className="px-2 py-1 rounded border text-sm w-24"
+                  style={{ backgroundColor: 'var(--bg-surface)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}
+                  min={1}
+                  max={50}
+                />
+              </SettingRow>
+
+              <SettingRow label={t('settings.commitTemplate')} description={t('settings.commitTemplateDesc')}>
+                <textarea
+                  value={preferences.commit.commit_template}
+                  onChange={(e) => updateCommit({ commit_template: e.target.value })}
+                  className="w-full px-2 py-1.5 rounded border text-sm font-mono"
+                  style={{ backgroundColor: 'var(--bg-surface)', borderColor: 'var(--border-color)', color: 'var(--text-primary)', minHeight: 60, resize: 'vertical' }}
+                  placeholder={t('settings.commitTemplatePlaceholder')}
+                  rows={3}
+                />
+              </SettingRow>
+
+              <SettingRow label={t('settings.checkTrailingWhitespace')} description={t('settings.checkTrailingWhitespaceDesc')}>
+                <ToggleSwitch
+                  checked={preferences.commit.check_trailing_whitespace}
+                  onChange={(v) => updateCommit({ check_trailing_whitespace: v })}
+                />
+              </SettingRow>
+
+              <SettingRow label={t('settings.checkBom')} description={t('settings.checkBomDesc')}>
+                <ToggleSwitch
+                  checked={preferences.commit.check_bom}
+                  onChange={(v) => updateCommit({ check_bom: v })}
+                />
+              </SettingRow>
+            </SettingsSection>
+
+            {/* Commit Types JSON Editor */}
+            <SettingsSection title={t('settings.commitTypes')}>
+              <div className="text-xs mb-3" style={{ color: 'var(--text-subtle)' }}>
+                {t('settings.commitTypesDesc')}
+              </div>
+              <textarea
+                value={commitTypesJson || JSON.stringify(preferences.commit.commit_types, null, 2)}
+                onChange={(e) => handleCommitTypesJsonChange(e.target.value)}
+                className="w-full px-2 py-1.5 rounded border text-xs font-mono"
+                style={{
+                  backgroundColor: 'var(--bg-surface)',
+                  borderColor: commitTypesJsonError ? 'var(--accent-red)' : 'var(--border-color)',
+                  color: 'var(--text-primary)',
+                  minHeight: 200,
+                  resize: 'vertical',
+                }}
+                rows={10}
+                onFocus={() => {
+                  if (!commitTypesJson) {
+                    setCommitTypesJson(JSON.stringify(preferences.commit.commit_types, null, 2));
+                  }
+                }}
+              />
+              {commitTypesJsonError && (
+                <div className="text-xs mt-1" style={{ color: 'var(--accent-red)' }}>
+                  {commitTypesJsonError}
+                </div>
+              )}
+            </SettingsSection>
           </div>
         );
 

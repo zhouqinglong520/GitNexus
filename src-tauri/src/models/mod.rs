@@ -343,3 +343,49 @@ pub struct BisectState {
     pub total_revisions: u32,
     pub tested_revisions: u32,
 }
+
+// ============================================================
+// Scanned Repository
+// ============================================================
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ScannedRepo {
+    pub path: String,
+    pub name: String,
+    pub branch: Option<String>,
+}
+
+// ============================================================
+// Diff File
+// ============================================================
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DiffFile {
+    pub path: String,
+    pub status: String, // Added/Modified/Deleted/Renamed/Copied
+}
+
+// ============================================================
+// Track Status
+// ============================================================
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TrackStatus {
+    pub branch: String,
+    pub upstream: Option<String>,
+    pub is_tracking: bool,
+    pub ahead: u32,
+    pub behind: u32,
+}
+
+// ============================================================
+// External Tool
+// ============================================================
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ExternalTool {
+    pub name: String,
+    pub category: String, // "editor" / "terminal" / "diff_tool"
+    pub path: String,
+    pub is_available: bool,
+}

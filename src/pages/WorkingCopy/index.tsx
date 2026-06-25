@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { useGitStore } from '@/stores/git-store';
 import { useUIStore } from '@/stores/ui-store';
+import { usePreferencesStore, densityConfig } from '@/stores/preferences-store';
 import { useTranslation } from '@/i18n';
 import { DiffView } from '@/components/DiffView';
 import {
@@ -65,13 +66,20 @@ export const WorkingCopy: React.FC = () => {
   const unstage = useGitStore((s) => s.unstage);
   const stageAll = useGitStore((s) => s.stageAll);
   const unstageAll = useGitStore((s) => s.unstageAll);
+  const stageHunk = useGitStore((s) => s.stageHunk);
+  const unstageHunk = useGitStore((s) => s.unstageHunk);
   const commit = useGitStore((s) => s.commit);
   const discard = useGitStore((s) => s.discard);
   const showContextMenu = useUIStore((s) => s.showContextMenu);
   const addNotification = useUIStore((s) => s.addNotification);
   const { t } = useTranslation();
 
+  // Density settings
+  const density = usePreferencesStore((s) => s.preferences.appearance.density);
+  const densityStyle = densityConfig[density];
+
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
+  const [selectedFileStaged, setSelectedFileStaged] = useState(false);
   const [commitMessage, setCommitMessage] = useState('');
   const [showStaged, setShowStaged] = useState(true);
   const [showUnstaged, setShowUnstaged] = useState(true);
@@ -114,6 +122,7 @@ export const WorkingCopy: React.FC = () => {
   const handleFileClick = useCallback(
     (entry: StatusEntry) => {
       setSelectedFile(entry.path);
+      setSelectedFileStaged(entry.staged);
       if (entry.staged) {
         fetchDiffStaged(entry.path);
       } else {
@@ -148,6 +157,24 @@ export const WorkingCopy: React.FC = () => {
       addNotification({ type: 'error', title: 'Commit failed', message: String(error) });
     }
   }, [commitMessage, commit, addNotification]);
+
+  const handleStageHunk = useCallback(
+    (file: string, patch: string) => {
+      stageHunk(file, patch).catch((err) => {
+        addNotification({ type: 'error', title: t('workingCopy.stageHunkFailed'), message: String(err) });
+      });
+    },
+    [stageHunk, addNotification]
+  );
+
+  const handleUnstageHunk = useCallback(
+    (file: string, patch: string) => {
+      unstageHunk(file, patch).catch((err) => {
+        addNotification({ type: 'error', title: t('workingCopy.unstageHunkFailed'), message: String(err) });
+      });
+    },
+    [unstageHunk, addNotification]
+  );
 
   const handleFileContextMenu = useCallback(
     (e: React.MouseEvent, entry: StatusEntry) => {
@@ -226,6 +253,7 @@ export const WorkingCopy: React.FC = () => {
                       selected={selectedFile === entry.path}
                       onClick={() => handleFileClick(entry)}
                       onContextMenu={(e) => handleFileContextMenu(e, entry)}
+                      densityStyle={densityStyle}
                     />
                   ))}
                 </div>
@@ -265,6 +293,7 @@ export const WorkingCopy: React.FC = () => {
                       selected={selectedFile === entry.path}
                       onClick={() => handleFileClick(entry)}
                       onContextMenu={(e) => handleFileContextMenu(e, entry)}
+                      densityStyle={densityStyle}
                     />
                   ))}
                   {untracked.map((entry) => (
@@ -274,6 +303,7 @@ export const WorkingCopy: React.FC = () => {
                       selected={selectedFile === entry.path}
                       onClick={() => handleFileClick(entry)}
                       onContextMenu={(e) => handleFileContextMenu(e, entry)}
+                      densityStyle={densityStyle}
                     />
                   ))}
                 </div>
@@ -296,6 +326,7 @@ export const WorkingCopy: React.FC = () => {
                   selected={selectedFile === entry.path}
                   onClick={() => handleFileClick(entry)}
                   onContextMenu={(e) => handleFileContextMenu(e, entry)}
+                  densityStyle={densityStyle}
                 />
               ))}
             </div>
@@ -320,7 +351,12 @@ export const WorkingCopy: React.FC = () => {
               {t('workingCopy.loadingDiff')}
             </div>
           ) : parsedDiffFiles.length > 0 ? (
-            <DiffView files={parsedDiffFiles} filePath={selectedFile ?? undefined} />
+            <DiffView
+              files={parsedDiffFiles}
+              filePath={selectedFile ?? undefined}
+              onStageHunk={selectedFileStaged ? undefined : handleStageHunk}
+              onUnstageHunk={selectedFileStaged ? handleUnstageHunk : undefined}
+            />
           ) : (
             <div className="flex items-center justify-center h-full text-sm" style={{ color: 'var(--text-subtle)' }}>
               {t('workingCopy.selectFile')}
@@ -383,14 +419,18 @@ const FileEntry: React.FC<{
   selected: boolean;
   onClick: () => void;
   onContextMenu: (e: React.MouseEvent) => void;
-}> = ({ entry, selected, onClick, onContextMenu }) => (
+  densityStyle: { rowHeight: string; listGap: string; fontSize: string; padding: string };
+}> = ({ entry, selected, onClick, onContextMenu, densityStyle }) => (
   <div
     onClick={onClick}
     onContextMenu={onContextMenu}
-    className="flex items-center gap-2 px-3 py-1.5 cursor-pointer transition-colors text-xs"
+    className="flex items-center gap-2 cursor-pointer transition-colors text-xs"
     style={{
       backgroundColor: selected ? 'rgba(137, 180, 250, 0.1)' : 'transparent',
       color: 'var(--text-primary)',
+      padding: densityStyle.padding,
+      minHeight: densityStyle.rowHeight,
+      fontSize: densityStyle.fontSize,
     }}
   >
     <span style={{ color: STATUS_COLORS[entry.status] }}>
