@@ -23,13 +23,16 @@ export const Repository: React.FC = () => {
   const operations = useUIStore((s) => s.operations);
   const fetchAll = useGitStore((s) => s.fetchAll);
   const openInFileManager = useGitStore((s) => s.openInFileManager);
+  const loading = useGitStore((s) => s.loading);
   const showContextMenu = useUIStore((s) => s.showContextMenu);
+  const activeViewTab = useUIStore((s) => s.activeViewTab);
+  const setActiveViewTab = useUIStore((s) => s.setActiveViewTab);
   const { t } = useTranslation();
 
   // Watch for repository changes (auto-refresh status, branches, etc.)
   useGitWatcher(activeRepo);
 
-  const [activeTabType, setActiveTabType] = useState<TabType>('histories');
+  const isLoading = loading.commits || loading.branches || loading.tags || loading.remotes || loading.status;
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
   const [dragSourceIndex, setDragSourceIndex] = useState<number | null>(null);
 
@@ -51,7 +54,7 @@ export const Repository: React.FC = () => {
   if (!activeRepo) return null;
 
   const currentTab = tabs.find((t) => t.repoPath === activeRepo);
-  const tabType = currentTab?.type ?? activeTabType;
+  const tabType = currentTab?.type ?? activeViewTab;
 
   // Tab context menu handler
   const handleTabContextMenu = useCallback(
@@ -203,7 +206,7 @@ export const Repository: React.FC = () => {
             {(['histories', 'working-copy', 'stashes'] as TabType[]).map((type) => (
               <button
                 key={type}
-                onClick={() => setActiveTabType(type)}
+                onClick={() => setActiveViewTab(type)}
                 className="px-4 py-2 text-xs transition-colors"
                 style={{
                   color: tabType === type ? 'var(--accent-blue)' : 'var(--text-subtle)',
@@ -244,9 +247,18 @@ export const Repository: React.FC = () => {
 
         {/* Content Area */}
         <div className="flex-1 overflow-hidden">
-          {tabType === 'histories' && <Histories />}
-          {tabType === 'working-copy' && <WorkingCopy />}
-          {tabType === 'stashes' && <Stashes />}
+          {isLoading ? (
+            <div className="flex flex-col items-center justify-center h-full gap-3" style={{ color: 'var(--text-subtle)' }}>
+              <div className="animate-spin w-6 h-6 border-2 rounded-full" style={{ borderColor: 'var(--accent-blue)', borderTopColor: 'transparent' }} />
+              <span className="text-sm">Loading repository...</span>
+            </div>
+          ) : (
+            <>
+              {tabType === 'histories' && <Histories />}
+              {tabType === 'working-copy' && <WorkingCopy />}
+              {tabType === 'stashes' && <Stashes />}
+            </>
+          )}
         </div>
       </div>
     </div>

@@ -75,9 +75,7 @@ export function useGitWatcher(repoPath: string | null) {
 
           if (success) {
             addNotification({ type: 'success', title: message ?? 'Operation completed' });
-            // Refresh data
-            fetchStatus();
-            fetchBranches();
+            // Mutation operations already call fetchAll internally, no need to refresh here
           } else {
             addNotification({ type: 'error', title: message ?? 'Operation failed' });
           }

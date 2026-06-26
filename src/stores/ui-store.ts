@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { ContextMenuState, ContextMenuItem, Notification, DialogState, InProgressOperation, CommandItem } from '@/types';
+import type { TabType, ContextMenuState, ContextMenuItem, Notification, DialogState, InProgressOperation, CommandItem } from '@/types';
 
 interface UIStore {
   // Command Palette
@@ -38,6 +38,10 @@ interface UIStore {
   sidebarWidth: number;
   toggleSidebar: () => void;
   setSidebarWidth: (width: number) => void;
+
+  // Active View Tab (controlled from sidebar)
+  activeViewTab: TabType;
+  setActiveViewTab: (tab: TabType) => void;
 
   // Bottom panel
   bottomPanelOpen: boolean;
@@ -107,6 +111,9 @@ export const useUIStore = create<UIStore>((set, get) => ({
   sidebarWidth: 260,
   toggleSidebar: () => set((s) => ({ sidebarOpen: !s.sidebarOpen })),
   setSidebarWidth: (width: number) => set({ sidebarWidth: width }),
+
+  activeViewTab: 'histories' as TabType,
+  setActiveViewTab: (tab: TabType) => set({ activeViewTab: tab }),
 
   bottomPanelOpen: false,
   bottomPanelHeight: 250,

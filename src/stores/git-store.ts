@@ -525,14 +525,30 @@ export const useGitStore = create<GitStore>((set, get) => ({
   },
 
   fetchAll: async () => {
-    await Promise.all([
-      get().fetchCommits(),
-      get().fetchBranches(),
-      get().fetchTags(),
-      get().fetchRemotes(),
-      get().fetchStashes(),
-      get().fetchStatus(),
-    ]);
+    set((s) => ({ loading: { ...s.loading, commits: true, branches: true, tags: true, remotes: true, stashes: true, status: true } }));
+    try {
+      const path = get().repoPath;
+      if (!path) return;
+      const [commits, branches, tags, remotes, stashes, status] = await Promise.all([
+        dedupedInvoke('git_get_commits', { path, branch: null, limit: 200, offset: 0 }),
+        dedupedInvoke('git_list_branches', { path }),
+        dedupedInvoke('git_list_tags', { path }),
+        dedupedInvoke('git_get_remotes', { path }),
+        dedupedInvoke('git_list_stash', { path }),
+        dedupedInvoke('git_get_status', { path }),
+      ]);
+      set({
+        commits: commits as Commit[],
+        branches: branches as Branch[],
+        tags: tags as Tag[],
+        remotes: remotes as Remote[],
+        stashes: stashes as Stash[],
+        status: status as Status,
+        loading: { ...get().loading, commits: false, branches: false, tags: false, remotes: false, stashes: false, status: false },
+      });
+    } catch (e) {
+      set((s) => ({ loading: { ...s.loading, commits: false, branches: false, tags: false, remotes: false, stashes: false, status: false } }));
+    }
   },
 
   commit: async (params: CommitParams) => {

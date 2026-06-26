@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   GitBranch,
@@ -9,6 +9,7 @@ import {
   Clock,
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
   Plus,
   Trash2,
   TreePine,
@@ -23,6 +24,7 @@ import {
   Download,
   Edit3,
   Scissors,
+  Search,
 } from 'lucide-react';
 import { useRepositoryStore } from '@/stores/repository-store';
 import { useGitStore } from '@/stores/git-store';
@@ -45,21 +47,27 @@ export const Sidebar: React.FC<SidebarProps> = ({ className = '' }) => {
   const addNotification = useUIStore((s) => s.addNotification);
   const { t } = useTranslation();
 
-  const branches = useGitStore((s) => s.branches);
-  const tags = useGitStore((s) => s.tags);
-  const remotes = useGitStore((s) => s.remotes);
-  const stashes = useGitStore((s) => s.stashes);
-  const status = useGitStore((s) => s.status);
-  const worktrees = useGitStore((s) => s.worktrees);
-  const statistics = useGitStore((s) => s.statistics);
-  const worktreesLoading = useGitStore((s) => s.loading.worktrees);
-  const statisticsLoading = useGitStore((s) => s.loading.statistics);
-
   const fetchWorktrees = useGitStore((s) => s.fetchWorktrees);
   const fetchStatistics = useGitStore((s) => s.fetchStatistics);
   const addWorktree = useGitStore((s) => s.addWorktree);
   const removeWorktree = useGitStore((s) => s.removeWorktree);
   const pruneWorktrees = useGitStore((s) => s.pruneWorktrees);
+
+  // Merged selector to reduce re-renders (Task 5)
+  const sidebarData = useGitStore((s) => ({
+    branches: s.branches,
+    tags: s.tags,
+    remotes: s.remotes,
+    stashes: s.stashes,
+    status: s.status,
+    worktrees: s.worktrees,
+    statistics: s.statistics,
+    worktreesLoading: s.loading.worktrees,
+    statisticsLoading: s.loading.statistics,
+  }));
+
+  // Destructure from merged selector
+  const { branches, tags, remotes, stashes, status, worktrees, statistics, worktreesLoading, statisticsLoading } = sidebarData;
 
   // Branch operations
   const checkoutBranch = useGitStore((s) => s.checkout);
@@ -85,14 +93,42 @@ export const Sidebar: React.FC<SidebarProps> = ({ className = '' }) => {
 
   const showContextMenu = useUIStore((s) => s.showContextMenu);
   const showDialog = useUIStore((s) => s.showDialog);
+  const activeViewTab = useUIStore((s) => s.activeViewTab);
+  const setActiveViewTab = useUIStore((s) => s.setActiveViewTab);
 
-  const [activeSection, setActiveSection] = useState<string>('branches');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({
+    'local-branches': false,
+    'remotes': false,
+    'tags': false,
+    'worktrees': false,
+  });
 
   // Worktree dialog state
   const [addWorktreeDialogOpen, setAddWorktreeDialogOpen] = useState(false);
   const [newWorktreePath, setNewWorktreePath] = useState('');
   const [newWorktreeRef, setNewWorktreeRef] = useState('');
   const [addingWorktree, setAddingWorktree] = useState(false);
+
+  const toggleGroup = useCallback((group: string) => {
+    setCollapsedGroups((prev) => ({ ...prev, [group]: !prev[group] }));
+  }, []);
+
+  const query = useMemo(() => searchQuery.toLowerCase().trim(), [searchQuery]);
+  const localBranches = useMemo(() => {
+    const local = branches.filter((b) => !b.is_remote);
+    if (!query) return local;
+    return local.filter((b) => b.name.toLowerCase().includes(query));
+  }, [branches, query]);
+  const remoteBranches = useMemo(() => {
+    const remote = branches.filter((b) => b.is_remote);
+    if (!query) return remote;
+    return remote.filter((b) => b.name.toLowerCase().includes(query));
+  }, [branches, query]);
+  const filteredTags = useMemo(() => {
+    if (!query) return tags;
+    return tags.filter((t) => t.name.toLowerCase().includes(query));
+  }, [tags, query]);
 
   // Load worktrees and statistics when sidebar is open and section is selected
   useEffect(() => {
@@ -527,13 +563,10 @@ export const Sidebar: React.FC<SidebarProps> = ({ className = '' }) => {
     );
   }
 
-  const sections = [
-    { id: 'branches', label: t('sidebar.branches'), icon: <GitBranch size={16} />, count: branches.length },
-    { id: 'tags', label: t('sidebar.tags'), icon: <Tag size={16} />, count: tags.length },
-    { id: 'remotes', label: t('sidebar.remotes'), icon: <FolderGit2 size={16} />, count: remotes.length },
-    { id: 'stashes', label: t('sidebar.stashes'), icon: <Clock size={16} />, count: stashes.length },
-    { id: 'worktrees', label: t('sidebar.worktrees'), icon: <TreePine size={16} />, count: worktrees.length },
-    { id: 'statistics', label: t('sidebar.stats'), icon: <BarChart3 size={16} />, count: 0 },
+  const viewTabs: { id: TabType; label: string }[] = [
+    { id: 'histories', label: t('repository.histories') },
+    { id: 'working-copy', label: t('repository.workingCopy') },
+    { id: 'stashes', label: t('repository.stashes') },
   ];
 
   return (
@@ -589,126 +622,153 @@ export const Sidebar: React.FC<SidebarProps> = ({ className = '' }) => {
         </div>
       )}
 
-      {/* Section tabs */}
-      <div className="flex border-b shrink-0 overflow-x-auto" style={{ borderColor: 'var(--border-color)' }}>
-        {sections.map((section) => (
-          <button
-            key={section.id}
-            onClick={() => setActiveSection(section.id)}
-            className="flex-1 flex flex-col items-center gap-0.5 py-2 text-xs transition-colors shrink-0"
-            style={{
-              color: activeSection === section.id ? 'var(--accent-blue)' : 'var(--text-subtle)',
-              borderBottom: activeSection === section.id ? '2px solid var(--accent-blue)' : '2px solid transparent',
-              minWidth: 40,
-            }}
-          >
-            {section.icon}
-            <span style={{ fontSize: 10 }}>{section.label}</span>
-            {section.count > 0 && (
-              <span style={{ fontSize: 9 }}>{section.count}</span>
-            )}
-          </button>
-        ))}
+      {/* View Selector - SourceGit style rounded buttons */}
+      <div className="p-2 shrink-0">
+        <div className="flex gap-1 p-1 rounded-lg" style={{ backgroundColor: 'var(--bg-overlay)' }}>
+          {viewTabs.map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveViewTab(tab.id)}
+              className="flex-1 py-1.5 text-xs font-medium rounded-md transition-all"
+              style={{
+                backgroundColor: activeViewTab === tab.id ? 'var(--accent-blue)' : 'transparent',
+                color: activeViewTab === tab.id ? 'var(--bg-base)' : 'var(--text-subtle)',
+              }}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
       </div>
 
-      {/* Section content */}
+      {/* Search filter */}
+      <div className="px-2 pb-2 shrink-0">
+        <div
+          className="flex items-center gap-2 px-2 py-1.5 rounded-md text-xs"
+          style={{ backgroundColor: 'var(--bg-overlay)', border: '1px solid var(--border-color)' }}
+        >
+          <Search size={12} style={{ color: 'var(--text-subtle)' }} />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder={t('sidebar.search') || 'Filter...'}
+            className="flex-1 bg-transparent border-none outline-none text-xs"
+            style={{ color: 'var(--text-primary)' }}
+          />
+        </div>
+      </div>
+
+      {/* Collapsible Groups */}
       <div className="flex-1 overflow-y-auto">
-        {activeSection === 'branches' && (
-          <div className="p-2">
+        {/* LOCAL BRANCHES */}
+        <CollapsibleGroup
+          title="LOCAL BRANCHES"
+          count={localBranches.length}
+          collapsed={collapsedGroups['local-branches']}
+          onToggle={() => toggleGroup('local-branches')}
+          extraContent={
             <button
-              className="w-full flex items-center gap-2 px-2 py-1.5 text-xs rounded transition-colors hover:bg-overlay mb-2"
+              className="w-full flex items-center gap-2 px-2 py-1 text-xs rounded transition-colors hover:bg-overlay"
               style={{ color: 'var(--accent-green)' }}
             >
               <Plus size={12} />
               <span>{t('sidebar.newBranch')}</span>
             </button>
-            {branches.map((branch) => (
-              <button
-                key={branch.name}
-                className="w-full flex items-center gap-2 px-2 py-1 text-xs rounded transition-colors hover:bg-overlay"
-                style={{
-                  color: branch.is_current ? 'var(--accent-green)' : 'var(--text-primary)',
-                  backgroundColor: branch.is_current ? 'rgba(166, 227, 161, 0.08)' : 'transparent',
-                }}
-                onContextMenu={(e) => handleBranchContextMenu(e, branch)}
-              >
-                <GitBranch size={12} />
-                <span className="truncate flex-1 text-left">{branch.name}</span>
-                {branch.is_current && (
-                  <span
-                    className="px-1 py-0.5 rounded"
-                    style={{ backgroundColor: 'var(--accent-green)', color: 'var(--bg-base)', fontSize: 9 }}
-                  >
-                    HEAD
-                  </span>
-                )}
-              </button>
-            ))}
-          </div>
-        )}
-
-        {activeSection === 'tags' && (
-          <div className="p-2">
-            {tags.map((tag) => (
-              <button
-                key={tag.name}
-                className="w-full flex items-center gap-2 px-2 py-1 text-xs rounded transition-colors hover:bg-overlay"
-                style={{ color: 'var(--accent-mauve)' }}
-                onContextMenu={(e) => handleTagContextMenu(e, tag)}
-              >
-                <Tag size={12} />
-                <span className="truncate flex-1 text-left">{tag.name}</span>
-              </button>
-            ))}
-          </div>
-        )}
-
-        {activeSection === 'remotes' && (
-          <div className="p-2">
-            {remotes.map((remote) => (
-              <div
-                key={remote.name}
-                className="flex items-center gap-2 px-2 py-1 text-xs"
-                style={{ color: 'var(--accent-peach)' }}
-                onContextMenu={(e) => handleRemoteContextMenu(e, remote)}
-              >
-                <FolderGit2 size={12} />
-                <span className="font-medium">{remote.name}</span>
-                <span className="truncate" style={{ color: 'var(--text-subtle)' }}>
-                  {remote.url}
+          }
+        >
+          {localBranches.map((branch) => (
+            <button
+              key={branch.name}
+              className="w-full flex items-center gap-2 px-2 py-1 text-xs rounded transition-colors hover:bg-overlay"
+              style={{
+                color: branch.is_current ? 'var(--accent-green)' : 'var(--text-primary)',
+                backgroundColor: branch.is_current ? 'rgba(166, 227, 161, 0.08)' : 'transparent',
+              }}
+              onContextMenu={(e) => handleBranchContextMenu(e, branch)}
+            >
+              <GitBranch size={12} />
+              <span className="truncate flex-1 text-left">{branch.name}</span>
+              {branch.is_current && (
+                <span
+                  className="px-1 py-0.5 rounded"
+                  style={{ backgroundColor: 'var(--accent-green)', color: 'var(--bg-base)', fontSize: 9 }}
+                >
+                  HEAD
                 </span>
-              </div>
-            ))}
-          </div>
-        )}
+              )}
+            </button>
+          ))}
+        </CollapsibleGroup>
 
-        {activeSection === 'stashes' && (
-          <div className="p-2">
-            {stashes.map((stash) => (
-              <div
-                key={stash.index}
-                className="flex items-center gap-2 px-2 py-1 text-xs rounded transition-colors hover:bg-overlay"
-                style={{ color: 'var(--accent-yellow)' }}
-              >
-                <Clock size={12} />
-                <span className="truncate flex-1 text-left">{stash.message}</span>
-              </div>
-            ))}
-            {stashes.length === 0 && (
-              <div className="px-2 py-4 text-center text-xs" style={{ color: 'var(--text-subtle)' }}>
-                {t('sidebar.noStashes')}
-              </div>
-            )}
-          </div>
-        )}
+        {/* REMOTES */}
+        <CollapsibleGroup
+          title="REMOTES"
+          count={remoteBranches.length}
+          collapsed={collapsedGroups['remotes']}
+          onToggle={() => toggleGroup('remotes')}
+        >
+          {remotes.map((remote) => (
+            <div
+              key={remote.name}
+              className="flex items-center gap-2 px-2 py-1 text-xs"
+              style={{ color: 'var(--accent-peach)' }}
+              onContextMenu={(e) => handleRemoteContextMenu(e, remote)}
+            >
+              <FolderGit2 size={12} />
+              <span className="font-medium">{remote.name}</span>
+              <span className="truncate" style={{ color: 'var(--text-subtle)' }}>
+                {remote.url}
+              </span>
+            </div>
+          ))}
+          {remoteBranches.length > 0 && remotes.length > 0 && (
+            <div className="my-1 border-t" style={{ borderColor: 'var(--border-color)' }} />
+          )}
+          {remoteBranches.map((branch) => (
+            <button
+              key={branch.name}
+              className="w-full flex items-center gap-2 px-2 py-1 text-xs rounded transition-colors hover:bg-overlay pl-6"
+              style={{ color: 'var(--text-secondary)' }}
+              onContextMenu={(e) => handleBranchContextMenu(e, branch)}
+            >
+              <GitBranch size={11} />
+              <span className="truncate flex-1 text-left">{branch.name}</span>
+            </button>
+          ))}
+        </CollapsibleGroup>
 
-        {activeSection === 'worktrees' && (
-          <div className="p-2">
-            {/* Worktree actions */}
-            <div className="flex items-center gap-1 mb-2">
+        {/* TAGS */}
+        <CollapsibleGroup
+          title="TAGS"
+          count={filteredTags.length}
+          collapsed={collapsedGroups['tags']}
+          onToggle={() => toggleGroup('tags')}
+        >
+          {filteredTags.map((tag) => (
+            <button
+              key={tag.name}
+              className="w-full flex items-center gap-2 px-2 py-1 text-xs rounded transition-colors hover:bg-overlay"
+              style={{ color: 'var(--accent-mauve)' }}
+              onContextMenu={(e) => handleTagContextMenu(e, tag)}
+            >
+              <Tag size={12} />
+              <span className="truncate flex-1 text-left">{tag.name}</span>
+            </button>
+          ))}
+        </CollapsibleGroup>
+
+        {/* WORKTREES */}
+        <CollapsibleGroup
+          title="WORKTREES"
+          count={worktrees.length}
+          collapsed={collapsedGroups['worktrees']}
+          onToggle={() => toggleGroup('worktrees')}
+          extraContent={
+            <div className="flex items-center gap-1">
               <button
                 onClick={() => setAddWorktreeDialogOpen(true)}
-                className="flex-1 flex items-center justify-center gap-1 px-2 py-1.5 text-xs rounded transition-colors hover:bg-overlay"
+                className="flex-1 flex items-center justify-center gap-1 px-2 py-1 text-xs rounded transition-colors hover:bg-overlay"
                 style={{ color: 'var(--accent-green)' }}
               >
                 <Plus size={12} />
@@ -716,7 +776,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ className = '' }) => {
               </button>
               <button
                 onClick={handlePruneWorktrees}
-                className="flex items-center justify-center gap-1 px-2 py-1.5 text-xs rounded transition-colors hover:bg-overlay"
+                className="flex items-center justify-center gap-1 px-2 py-1 text-xs rounded transition-colors hover:bg-overlay"
                 style={{ color: 'var(--accent-peach)' }}
                 title="Prune stale worktrees"
               >
@@ -724,65 +784,71 @@ export const Sidebar: React.FC<SidebarProps> = ({ className = '' }) => {
                 <span>{t('common.prune')}</span>
               </button>
             </div>
-
-            {worktreesLoading ? (
-              <div className="flex items-center justify-center py-4" style={{ color: 'var(--text-subtle)' }}>
-                <Loader2 size={14} className="animate-spin" />
-              </div>
-            ) : worktrees.length === 0 ? (
-              <div className="px-2 py-4 text-center text-xs" style={{ color: 'var(--text-subtle)' }}>
-                {t('sidebar.noWorktrees')}
-              </div>
-            ) : (
-              worktrees.map((wt) => (
-                <div
-                  key={wt.path}
-                  className="flex items-center gap-2 px-2 py-1.5 text-xs rounded transition-colors hover:bg-overlay group"
-                  style={{ color: 'var(--text-primary)' }}
-                >
-                  <TreePine size={12} style={{ color: wt.is_main ? 'var(--accent-green)' : 'var(--accent-teal)' }} />
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-1">
-                      <span className="truncate font-medium">{wt.name}</span>
-                      {wt.is_main && (
-                        <span
-                          className="px-1 py-0.5 rounded shrink-0"
-                          style={{ backgroundColor: 'var(--accent-green)', color: 'var(--bg-base)', fontSize: 9 }}
-                        >
-                          MAIN
-                        </span>
-                      )}
-                      {wt.is_locked && (
-                        <Lock size={10} style={{ color: 'var(--accent-yellow)' }} />
-                      )}
-                    </div>
-                    <div className="truncate" style={{ color: 'var(--text-subtle)', fontSize: 10 }}>
-                      {wt.branch} - {wt.path}
-                    </div>
+          }
+        >
+          {worktreesLoading ? (
+            <div className="flex items-center justify-center py-4" style={{ color: 'var(--text-subtle)' }}>
+              <Loader2 size={14} className="animate-spin" />
+            </div>
+          ) : worktrees.length === 0 ? (
+            <div className="px-2 py-4 text-center text-xs" style={{ color: 'var(--text-subtle)' }}>
+              {t('sidebar.noWorktrees')}
+            </div>
+          ) : (
+            worktrees.map((wt) => (
+              <div
+                key={wt.path}
+                className="flex items-center gap-2 px-2 py-1.5 text-xs rounded transition-colors hover:bg-overlay group"
+                style={{ color: 'var(--text-primary)' }}
+              >
+                <TreePine size={12} style={{ color: wt.is_main ? 'var(--accent-green)' : 'var(--accent-teal)' }} />
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-1">
+                    <span className="truncate font-medium">{wt.name}</span>
+                    {wt.is_main && (
+                      <span
+                        className="px-1 py-0.5 rounded shrink-0"
+                        style={{ backgroundColor: 'var(--accent-green)', color: 'var(--bg-base)', fontSize: 9 }}
+                      >
+                        MAIN
+                      </span>
+                    )}
+                    {wt.is_locked && (
+                      <Lock size={10} style={{ color: 'var(--accent-yellow)' }} />
+                    )}
                   </div>
-                  {!wt.is_main && (
-                    <button
-                      onClick={() => handleRemoveWorktree(wt.path)}
-                      className="p-1 rounded opacity-0 group-hover:opacity-100 transition-opacity hover:bg-overlay"
-                      style={{ color: 'var(--accent-red)' }}
-                      title="Remove worktree"
-                    >
-                      <Trash2 size={12} />
-                    </button>
-                  )}
+                  <div className="truncate" style={{ color: 'var(--text-subtle)', fontSize: 10 }}>
+                    {wt.branch} - {wt.path}
+                  </div>
                 </div>
-              ))
-            )}
-          </div>
-        )}
+                {!wt.is_main && (
+                  <button
+                    onClick={() => handleRemoveWorktree(wt.path)}
+                    className="p-1 rounded opacity-0 group-hover:opacity-100 transition-opacity hover:bg-overlay"
+                    style={{ color: 'var(--accent-red)' }}
+                    title="Remove worktree"
+                  >
+                    <Trash2 size={12} />
+                  </button>
+                )}
+              </div>
+            ))
+          )}
+        </CollapsibleGroup>
 
-        {activeSection === 'statistics' && (
-          <div className="p-2">
+        {/* STATISTICS */}
+        {statistics && (
+          <CollapsibleGroup
+            title="STATISTICS"
+            count={0}
+            collapsed={collapsedGroups['statistics']}
+            onToggle={() => toggleGroup('statistics')}
+          >
             {statisticsLoading ? (
               <div className="flex items-center justify-center py-4" style={{ color: 'var(--text-subtle)' }}>
                 <Loader2 size={14} className="animate-spin" />
               </div>
-            ) : statistics ? (
+            ) : (
               <div className="space-y-1">
                 <StatRow
                   icon={<GitCommit size={12} style={{ color: 'var(--accent-mauve)' }} />}
@@ -803,16 +869,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ className = '' }) => {
                   icon={<FolderGit2 size={12} style={{ color: 'var(--accent-blue)' }} />}
                   label={t('sidebar.totalRemotes')}
                   value={statistics.total_remotes.toLocaleString()}
-                />
-                <StatRow
-                  icon={<Clock size={12} style={{ color: 'var(--accent-yellow)' }} />}
-                  label={t('sidebar.totalStashes')}
-                  value={statistics.total_stashes.toLocaleString()}
-                />
-                <StatRow
-                  icon={<TreePine size={12} style={{ color: 'var(--accent-teal)' }} />}
-                  label={t('sidebar.totalWorktrees')}
-                  value={statistics.total_worktrees.toLocaleString()}
                 />
                 <StatRow
                   icon={<AlertTriangle size={12} style={{ color: 'var(--accent-lavender)' }} />}
@@ -843,12 +899,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ className = '' }) => {
                   </div>
                 )}
               </div>
-            ) : (
-              <div className="px-2 py-4 text-center text-xs" style={{ color: 'var(--text-subtle)' }}>
-                {t('sidebar.noStats')}
-              </div>
             )}
-          </div>
+          </CollapsibleGroup>
         )}
       </div>
 
@@ -982,5 +1034,38 @@ const StatRow: React.FC<{ icon: React.ReactNode; label: string; value: string }>
     <span className="font-mono font-medium" style={{ color: 'var(--text-primary)' }}>
       {value}
     </span>
+  </div>
+);
+
+const CollapsibleGroup: React.FC<{
+  title: string;
+  count: number;
+  collapsed: boolean;
+  onToggle: () => void;
+  extraContent?: React.ReactNode;
+  children: React.ReactNode;
+}> = ({ title, count, collapsed, onToggle, extraContent, children }) => (
+  <div className="px-2">
+    <button
+      onClick={onToggle}
+      className="w-full flex items-center gap-2 px-1 py-1.5 text-xs font-medium transition-colors hover:bg-overlay rounded"
+      style={{ color: 'var(--text-secondary)' }}
+    >
+      <ChevronDown
+        size={12}
+        className="transition-transform shrink-0"
+        style={{ transform: collapsed ? 'rotate(-90deg)' : 'rotate(0deg)' }}
+      />
+      <span className="flex-1 text-left">{title}</span>
+      {count > 0 && (
+        <span style={{ color: 'var(--text-subtle)', fontSize: 10 }}>{count}</span>
+      )}
+    </button>
+    {!collapsed && (
+      <div className="pb-1">
+        {extraContent}
+        {children}
+      </div>
+    )}
   </div>
 );
