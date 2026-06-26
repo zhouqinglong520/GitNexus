@@ -12,7 +12,6 @@ permissions:
 jobs:
   build-windows:
     runs-on: windows-latest
-
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -44,13 +43,12 @@ jobs:
           tagName: ${{ github.ref_name }}
           releaseName: 'GitNexus v__VERSION__'
           releaseBody: 'See the assets to download and install this version.'
-          releaseDraft: true
+          releaseDraft: false
           prerelease: false
           args: --bundles nsis
 
   build-linux:
     runs-on: ubuntu-22.04
-
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -87,13 +85,12 @@ jobs:
           tagName: ${{ github.ref_name }}
           releaseName: 'GitNexus v__VERSION__'
           releaseBody: 'See the assets to download and install this version.'
-          releaseDraft: true
+          releaseDraft: false
           prerelease: false
           args: --bundles deb
 
   build-macos:
     runs-on: macos-latest
-
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -125,5 +122,5 @@ jobs:
           tagName: ${{ github.ref_name }}
           releaseName: 'GitNexus v__VERSION__'
           releaseBody: 'See the assets to download and install this version.'
-          releaseDraft: true
+          releaseDraft: false
           prerelease: false
