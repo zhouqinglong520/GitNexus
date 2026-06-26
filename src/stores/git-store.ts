@@ -613,14 +613,14 @@ export const useGitStore = create<GitStore>((set, get) => ({
 
   fetchRemote: async (params: FetchParams) => {
     const path = requirePath(get());
-    const appHandle = getCurrentWebviewWindow();
+    const app_handle = getCurrentWebviewWindow();
     await dedupedInvoke('git_fetch', {
       path,
       remote: params.remote || null,
       prune: params.prune,
       tags: false,
       depth: null,
-      appHandle,
+      app_handle,
     });
     await get().fetchBranches();
     await get().fetchTags();
@@ -628,7 +628,7 @@ export const useGitStore = create<GitStore>((set, get) => ({
 
   pull: async (params: PullParams) => {
     const path = requirePath(get());
-    const appHandle = getCurrentWebviewWindow();
+    const app_handle = getCurrentWebviewWindow();
     await dedupedInvoke('git_pull', {
       path,
       remote: params.remote || null,
@@ -636,14 +636,14 @@ export const useGitStore = create<GitStore>((set, get) => ({
       rebase: params.rebase,
       ff_only: false,
       autostash: false,
-      appHandle,
+      app_handle,
     });
     await get().fetchAll();
   },
 
   push: async (params: PushParams) => {
     const path = requirePath(get());
-    const appHandle = getCurrentWebviewWindow();
+    const app_handle = getCurrentWebviewWindow();
     await dedupedInvoke('git_push', {
       path,
       remote: params.remote || null,
@@ -652,7 +652,7 @@ export const useGitStore = create<GitStore>((set, get) => ({
       force_with_lease: false,
       set_upstream: params.upstream,
       tags: false,
-      appHandle,
+      app_handle,
     });
     await get().fetchBranches();
     await get().fetchStatus();
@@ -816,12 +816,12 @@ export const useGitStore = create<GitStore>((set, get) => ({
 
   rebase: async (onto?: string, branch?: string) => {
     const path = requirePath(get());
-    const appHandle = getCurrentWebviewWindow();
+    const app_handle = getCurrentWebviewWindow();
     await dedupedInvoke('git_rebase', {
       path,
       onto: onto ?? null,
       branch: branch ?? null,
-      appHandle,
+      app_handle,
     });
     await get().fetchAll();
   },
@@ -1108,11 +1108,11 @@ export const useGitStore = create<GitStore>((set, get) => ({
 
   startInteractiveRebase: async (onto?: string) => {
     const path = requirePath(get());
-    const appHandle = getCurrentWebviewWindow();
+    const app_handle = getCurrentWebviewWindow();
     await dedupedInvoke('git_start_interactive_rebase', {
       path,
       onto: onto ?? null,
-      appHandle,
+      app_handle,
     });
     await get().fetchAll();
   },
@@ -1120,12 +1120,12 @@ export const useGitStore = create<GitStore>((set, get) => ({
   startInteractiveRebaseWithTodos: async (path: string, todos: Array<{ hash: string; action: string }>) => {
     const repoPath = requirePath(get());
     const todoText = todos.map((t) => `${t.action} ${t.hash}`).join('\n');
-    const appHandle = getCurrentWebviewWindow();
+    const app_handle = getCurrentWebviewWindow();
     await dedupedInvoke('git_start_interactive_rebase_with_todos', {
       path: repoPath,
       onto: path,
       todo_text: todoText,
-      appHandle,
+      app_handle,
     });
     await get().fetchAll();
   },
@@ -1366,12 +1366,12 @@ export const useGitStore = create<GitStore>((set, get) => ({
 
   executeCustomAction: async (params: { action: any; variableValues: Record<string, string> }) => {
     const path = requirePath(get());
-    const appHandle = getCurrentWebviewWindow();
+    const app_handle = getCurrentWebviewWindow();
     return await dedupedInvoke('git_execute_custom_action', {
       path,
       action: params.action,
       variable_values: params.variableValues,
-      appHandle,
+      app_handle,
     });
   },
 

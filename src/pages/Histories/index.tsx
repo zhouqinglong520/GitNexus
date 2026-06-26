@@ -1,6 +1,5 @@
 import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { invoke } from '@tauri-apps/api/core';
 import { useGitStore } from '@/stores/git-store';
 import { useUIStore } from '@/stores/ui-store';
 import { usePreferencesStore, densityConfig } from '@/stores/preferences-store';
@@ -740,21 +739,15 @@ export const Histories: React.FC = () => {
     async (baseSha: string, rebaseTodos: RebaseTodoItem[]) => {
       setRebaseDialogOpen(false);
       try {
-        const repoPath = useGitStore.getState().repoPath;
-        if (!repoPath) return;
-        const todos = rebaseTodos.map((item) => ({ hash: item.hash, action: item.action }));
-        await invoke('git_start_interactive_rebase_with_todos', {
-          path: repoPath,
-          onto: baseSha,
-          todos,
-        });
+        const todos = rebaseTodos.map(item => ({ hash: item.hash, action: item.action }));
+        await useGitStore.getState().startInteractiveRebaseWithTodos(baseSha, todos);
         addNotification({ type: 'success', title: t('interactiveRebase.success') });
         useGitStore.getState().fetchAll();
       } catch (err) {
         addNotification({ type: 'error', title: t('interactiveRebase.failed'), message: String(err) });
       }
     },
-    [addNotification]
+    [addNotification, t]
   );
 
   // ---- 右键菜单 ----

@@ -88,7 +88,7 @@ export const Welcome: React.FC = () => {
       const fullPath = `${initPath}/${initName}`.replace(/\/+/g, '/');
       await invoke('git_init_repo', {
         path: fullPath,
-        isBare: false,
+        is_bare: false,
       });
       addNotification({ type: 'success', title: t('welcome.initSuccess') });
       setShowInit(false);
