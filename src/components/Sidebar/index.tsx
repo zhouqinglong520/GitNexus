@@ -25,12 +25,14 @@ import {
   Edit3,
   Scissors,
   Search,
+  FolderOpen,
+  Copy,
 } from 'lucide-react';
 import { useRepositoryStore } from '@/stores/repository-store';
 import { useGitStore } from '@/stores/git-store';
 import { useUIStore } from '@/stores/ui-store';
 import { useTranslation } from '@/i18n';
-import type { TabType, Branch, Tag as TagType, Remote, ContextMenuItem } from '@/types';
+import type { TabType, Branch, Tag as TagType, Remote, ContextMenuItem, Worktree } from '@/types';
 
 interface SidebarProps {
   className?: string;
@@ -52,6 +54,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ className = '' }) => {
   const addWorktree = useGitStore((s) => s.addWorktree);
   const removeWorktree = useGitStore((s) => s.removeWorktree);
   const pruneWorktrees = useGitStore((s) => s.pruneWorktrees);
+  const openInFileManager = useGitStore((s) => s.openInFileManager);
 
   // Merged selector to reduce re-renders (Task 5)
   const sidebarData = useGitStore((s) => ({
@@ -102,6 +105,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ className = '' }) => {
     'remotes': false,
     'tags': false,
     'worktrees': false,
+    'statistics': false,
   });
 
   // Worktree dialog state
@@ -536,6 +540,45 @@ export const Sidebar: React.FC<SidebarProps> = ({ className = '' }) => {
     [showContextMenu, addNotification, showDialog, t, fetchRemote, pruneRemote, editRemote, removeRemote]
   );
 
+  // ---- Worktree 右键菜单 ----
+  const handleWorktreeContextMenu = useCallback(
+    (e: React.MouseEvent, wt: Worktree) => {
+      e.preventDefault();
+      const items: ContextMenuItem[] = [
+        {
+          id: 'open-in-file-manager',
+          label: t('sidebar.openInFileManager'),
+          icon: <FolderOpen size={12} />,
+          action: () => {
+            openInFileManager(wt.path).catch(() => {});
+          },
+        },
+        { id: 'sep1', label: '', separator: true },
+        {
+          id: 'copy-path',
+          label: t('workingCopy.copyFilePath'),
+          icon: <Copy size={12} />,
+          action: () => navigator.clipboard.writeText(wt.path),
+        },
+      ];
+
+      if (!wt.is_main) {
+        items.push(
+          { id: 'sep2', label: '', separator: true },
+          {
+            id: 'remove',
+            label: t('sidebar.removeWorktree'),
+            icon: <Trash2 size={12} />,
+            action: () => handleRemoveWorktree(wt.path),
+          }
+        );
+      }
+
+      showContextMenu(e.clientX, e.clientY, items);
+    },
+    [showContextMenu, openInFileManager, handleRemoveWorktree, t]
+  );
+
   if (!sidebarOpen) {
     return (
       <div
@@ -669,6 +712,14 @@ export const Sidebar: React.FC<SidebarProps> = ({ className = '' }) => {
           onToggle={() => toggleGroup('local-branches')}
           extraContent={
             <button
+              onClick={() => {
+                const name = window.prompt('Enter new branch name');
+                if (name && name.trim()) {
+                  createBranch({ name: name.trim(), ref: status?.branch ?? 'HEAD' }).catch((err) => {
+                    addNotification({ type: 'error', title: 'Failed to create branch', message: String(err) });
+                  });
+                }
+              }}
               className="w-full flex items-center gap-2 px-2 py-1 text-xs rounded transition-colors hover:bg-overlay"
               style={{ color: 'var(--accent-green)' }}
             >
@@ -800,6 +851,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ className = '' }) => {
                 key={wt.path}
                 className="flex items-center gap-2 px-2 py-1.5 text-xs rounded transition-colors hover:bg-overlay group"
                 style={{ color: 'var(--text-primary)' }}
+                onContextMenu={(e) => handleWorktreeContextMenu(e, wt)}
               >
                 <TreePine size={12} style={{ color: wt.is_main ? 'var(--accent-green)' : 'var(--accent-teal)' }} />
                 <div className="flex-1 min-w-0">
