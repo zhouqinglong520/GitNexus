@@ -1,21 +1,49 @@
-import React, { useCallback } from 'react';
+import React, { useEffect, useRef, useCallback, useState } from 'react';
 import { Minus, Square, X } from 'lucide-react';
-import { getCurrentWindow } from '@tauri-apps/api/window';
 
+/**
+ * 自定义标题栏组件（仅 Tauri 桌面环境渲染）
+ *
+ * 在非 Tauri 环境（如浏览器预览）中，getCurrentWindow() 返回 undefined，
+ * 直接调用其方法会导致运行时崩溃。由于该组件在 App.tsx 中被无条件渲染，
+ * 一旦崩溃将导致整个应用白屏，因此必须添加运行时保护。
+ */
 export const CustomTitleBar: React.FC = () => {
-  const appWindow = getCurrentWindow();
+  const appWindowRef = useRef<any>(null);
+  // 用于跟踪 Tauri API 是否已成功初始化，决定是否渲染标题栏 DOM
+  const [isTauriEnv, setIsTauriEnv] = useState(false);
+
+  useEffect(() => {
+    const init = async () => {
+      try {
+        const { getCurrentWindow } = await import('@tauri-apps/api/window');
+        const win = getCurrentWindow();
+        if (win) {
+          appWindowRef.current = win;
+          setIsTauriEnv(true);
+        }
+      } catch {
+        // 非 Tauri 环境，保持 isTauriEnv = false，不渲染标题栏
+        console.debug('[CustomTitleBar] 非 Tauri 环境，跳过自定义标题栏渲染');
+      }
+    };
+    init();
+  }, []);
 
   const handleMinimize = useCallback(() => {
-    appWindow.minimize();
-  }, [appWindow]);
+    appWindowRef.current?.minimize();
+  }, []);
 
   const handleMaximize = useCallback(() => {
-    appWindow.toggleMaximize();
-  }, [appWindow]);
+    appWindowRef.current?.toggleMaximize();
+  }, []);
 
   const handleClose = useCallback(() => {
-    appWindow.close();
-  }, [appWindow]);
+    appWindowRef.current?.close();
+  }, []);
+
+  // 非 Tauri 环境不渲染任何内容
+  if (!isTauriEnv) return null;
 
   return (
     <div
