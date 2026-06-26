@@ -1,5 +1,9 @@
 use crate::git::command::{GitCommand, GitError};
 
+// Windows 平台：隐藏控制台窗口的创建标志
+#[cfg(target_os = "windows")]
+use std::os::windows::process::CommandExt;
+
 /// Create a commit.
 pub fn commit(
     path: &str,
@@ -96,6 +100,10 @@ pub fn stage_hunk(path: &str, file: &str, patch_text: &str) -> Result<(), GitErr
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::piped());
 
+    // Windows: 隐藏控制台窗口
+    #[cfg(target_os = "windows")]
+    cmd.creation_flags(0x08000000);
+
     let mut child = cmd
         .spawn()
         .map_err(|e| GitError::ProcessError(e.to_string()))?;
@@ -140,6 +148,10 @@ pub fn unstage_hunk(path: &str, file: &str, patch_text: &str) -> Result<(), GitE
         .stdin(std::process::Stdio::piped())
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::piped());
+
+    // Windows: 隐藏控制台窗口
+    #[cfg(target_os = "windows")]
+    cmd.creation_flags(0x08000000);
 
     let mut child = cmd
         .spawn()

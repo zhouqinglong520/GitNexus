@@ -5,6 +5,18 @@ use std::process::Stdio;
 
 use crate::git::command::GitError;
 
+// Windows 平台：隐藏控制台窗口的创建标志
+#[cfg(target_os = "windows")]
+use std::os::windows::process::CommandExt;
+
+/// 在 Windows 上为 Command 设置 CREATE_NO_WINDOW 标志，防止弹出 CMD 黑窗口
+#[cfg(target_os = "windows")]
+fn set_no_window(cmd: &mut StdCommand) {
+    cmd.creation_flags(0x08000000); // CREATE_NO_WINDOW
+}
+#[cfg(not(target_os = "windows"))]
+fn set_no_window(_cmd: &mut StdCommand) {}
+
 // ============================================================
 // Custom Action types
 // ============================================================
@@ -155,6 +167,9 @@ pub fn execute_custom_action(
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
 
+    // Windows: 隐藏控制台窗口
+    set_no_window(&mut cmd);
+
     let output = cmd
         .output()
         .map_err(|e| GitError::ProcessError(format!("Failed to execute command: {}", e)))?;
@@ -217,17 +232,18 @@ pub fn save_repo_config(path: &str, config: &RepoConfig) -> Result<(), GitError>
 
 /// Get the current branch name of a repository.
 fn get_current_branch(repo_path: &str) -> Option<String> {
-    let output = StdCommand::new("git")
-        .arg("--no-pager")
+    let mut cmd = StdCommand::new("git");
+    cmd.arg("--no-pager")
         .arg("rev-parse")
         .arg("--abbrev-ref")
         .arg("HEAD")
         .current_dir(repo_path)
         .env("GIT_TERMINAL_PROMPT", "0")
         .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .output()
-        .ok()?;
+        .stderr(Stdio::piped());
+    set_no_window(&mut cmd);
+
+    let output = cmd.output().ok()?;
 
     if output.status.success() {
         let branch = String::from_utf8_lossy(&output.stdout).trim().to_string();
@@ -243,16 +259,17 @@ fn get_current_branch(repo_path: &str) -> Option<String> {
 
 /// Get the current HEAD commit SHA.
 fn get_head_sha(repo_path: &str) -> Option<String> {
-    let output = StdCommand::new("git")
-        .arg("--no-pager")
+    let mut cmd = StdCommand::new("git");
+    cmd.arg("--no-pager")
         .arg("rev-parse")
         .arg("HEAD")
         .current_dir(repo_path)
         .env("GIT_TERMINAL_PROMPT", "0")
         .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .output()
-        .ok()?;
+        .stderr(Stdio::piped());
+    set_no_window(&mut cmd);
+
+    let output = cmd.output().ok()?;
 
     if output.status.success() {
         let sha = String::from_utf8_lossy(&output.stdout).trim().to_string();
@@ -269,14 +286,17 @@ fn get_head_sha(repo_path: &str) -> Option<String> {
 /// Resolve the git common directory for a repository path.
 /// This handles both regular repos and worktrees.
 fn get_git_common_dir(repo_path: &str) -> Result<std::path::PathBuf, GitError> {
-    let output = StdCommand::new("git")
-        .arg("--no-pager")
+    let mut cmd = StdCommand::new("git");
+    cmd.arg("--no-pager")
         .arg("rev-parse")
         .arg("--git-common-dir")
         .current_dir(repo_path)
         .env("GIT_TERMINAL_PROMPT", "0")
         .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
+        .stderr(Stdio::piped());
+    set_no_window(&mut cmd);
+
+    let output = cmd
         .output()
         .map_err(|e| GitError::ProcessError(e.to_string()))?;
 

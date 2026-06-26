@@ -2,10 +2,25 @@ use crate::git::command::GitError;
 use crate::models::ExternalTool;
 use std::process::Command as StdCommand;
 
+// Windows 平台：隐藏控制台窗口的创建标志
+#[cfg(target_os = "windows")]
+use std::os::windows::process::CommandExt;
+
+/// 在 Windows 上为 Command 设置 CREATE_NO_WINDOW 标志，防止弹出 CMD 黑窗口
+#[cfg(target_os = "windows")]
+fn set_no_window(cmd: &mut StdCommand) {
+    cmd.creation_flags(0x08000000); // CREATE_NO_WINDOW
+}
+#[cfg(not(target_os = "windows"))]
+fn set_no_window(_cmd: &mut StdCommand) {}
+
 /// Get the installed git version string.
 pub fn get_git_version() -> Result<String, GitError> {
-    let output = StdCommand::new("git")
-        .arg("--version")
+    let mut cmd = StdCommand::new("git");
+    cmd.arg("--version");
+    set_no_window(&mut cmd);
+
+    let output = cmd
         .output()
         .map_err(|e| GitError::ProcessError(e.to_string()))?;
 
@@ -31,8 +46,10 @@ pub fn open_in_file_manager(path: &str) -> Result<(), GitError> {
         ("open", path)
     } else {
         // Linux: try xdg-open first, then nautilus as fallback
-        let output = StdCommand::new("xdg-open")
-            .arg(path)
+        let mut cmd = StdCommand::new("xdg-open");
+        cmd.arg(path);
+        set_no_window(&mut cmd);
+        let output = cmd
             .output()
             .map_err(|e| GitError::ProcessError(e.to_string()))?;
 
@@ -40,8 +57,10 @@ pub fn open_in_file_manager(path: &str) -> Result<(), GitError> {
             return Ok(());
         }
 
-        let output = StdCommand::new("nautilus")
-            .arg(path)
+        let mut cmd = StdCommand::new("nautilus");
+        cmd.arg(path);
+        set_no_window(&mut cmd);
+        let output = cmd
             .output()
             .map_err(|e| GitError::ProcessError(e.to_string()))?;
 
@@ -55,8 +74,11 @@ pub fn open_in_file_manager(path: &str) -> Result<(), GitError> {
         )));
     };
 
-    let output = StdCommand::new(cmd)
-        .arg(arg)
+    let mut command = StdCommand::new(cmd);
+    command.arg(arg);
+    set_no_window(&mut command);
+
+    let output = command
         .output()
         .map_err(|e| GitError::ProcessError(e.to_string()))?;
 
@@ -74,8 +96,10 @@ pub fn open_in_file_manager(path: &str) -> Result<(), GitError> {
 pub fn open_in_terminal(path: &str) -> Result<(), GitError> {
     if cfg!(target_os = "windows") {
         // Windows: use cmd /c start
-        let output = StdCommand::new("cmd")
-            .args(["/c", "start", "cmd", "/k", &format!("cd /d {}", path)])
+        let mut cmd = StdCommand::new("cmd");
+        cmd.args(["/c", "start", "cmd", "/k", &format!("cd /d {}", path)]);
+        set_no_window(&mut cmd);
+        let output = cmd
             .output()
             .map_err(|e| GitError::ProcessError(e.to_string()))?;
 
@@ -89,8 +113,10 @@ pub fn open_in_terminal(path: &str) -> Result<(), GitError> {
         }
     } else if cfg!(target_os = "macos") {
         // macOS: use open -a Terminal
-        let output = StdCommand::new("open")
-            .args(["-a", "Terminal", path])
+        let mut cmd = StdCommand::new("open");
+        cmd.args(["-a", "Terminal", path]);
+        set_no_window(&mut cmd);
+        let output = cmd
             .output()
             .map_err(|e| GitError::ProcessError(e.to_string()))?;
 
@@ -116,8 +142,10 @@ pub fn open_in_terminal(path: &str) -> Result<(), GitError> {
         ];
 
         for (cmd, args) in &terminals {
-            let result = StdCommand::new(cmd)
-                .args(args)
+            let mut command = StdCommand::new(cmd);
+            command.args(args);
+            set_no_window(&mut command);
+            let result = command
                 .spawn()
                 .map_err(|e| GitError::ProcessError(e.to_string()));
 
@@ -127,8 +155,10 @@ pub fn open_in_terminal(path: &str) -> Result<(), GitError> {
         }
 
         // Fallback: try xdg-open with a terminal URI scheme
-        let output = StdCommand::new("xdg-open")
-            .arg(path)
+        let mut cmd = StdCommand::new("xdg-open");
+        cmd.arg(path);
+        set_no_window(&mut cmd);
+        let output = cmd
             .output()
             .map_err(|e| GitError::ProcessError(e.to_string()))?;
 
@@ -160,6 +190,9 @@ pub fn open_in_browser(url: &str) -> Result<(), GitError> {
         command.arg(arg);
     }
 
+    // Windows: 隐藏控制台窗口
+    set_no_window(&mut command);
+
     let output = command
         .output()
         .map_err(|e| GitError::ProcessError(e.to_string()))?;
@@ -184,7 +217,10 @@ pub fn find_git_executable() -> Result<String, GitError> {
     // First try to find git via `which` or `where` depending on platform
     if cfg!(target_os = "windows") {
         // Try `where git` first
-        if let Ok(output) = StdCommand::new("where").arg("git").output() {
+        let mut cmd = StdCommand::new("where");
+        cmd.arg("git");
+        set_no_window(&mut cmd);
+        if let Ok(output) = cmd.output() {
             if output.status.success() {
                 let path = String::from_utf8_lossy(&output.stdout);
                 let first_line = path.lines().next().map(|l| l.trim()).unwrap_or("");
@@ -207,7 +243,10 @@ pub fn find_git_executable() -> Result<String, GitError> {
         }
     } else {
         // Try `which git` first
-        if let Ok(output) = StdCommand::new("which").arg("git").output() {
+        let mut cmd = StdCommand::new("which");
+        cmd.arg("git");
+        set_no_window(&mut cmd);
+        if let Ok(output) = cmd.output() {
             if output.status.success() {
                 let path = String::from_utf8_lossy(&output.stdout);
                 let trimmed = path.trim();
@@ -336,22 +375,34 @@ pub fn find_external_tools() -> Result<Vec<ExternalTool>, GitError> {
 
 /// Check if a command is available in PATH.
 fn is_command_available(cmd: &str) -> bool {
-    let result = if cfg!(target_os = "windows") {
-        StdCommand::new("where").arg(cmd).output()
+    let mut command = if cfg!(target_os = "windows") {
+        let mut c = StdCommand::new("where");
+        c.arg(cmd);
+        c
     } else {
-        StdCommand::new("which").arg(cmd).output()
+        let mut c = StdCommand::new("which");
+        c.arg(cmd);
+        c
     };
+    set_no_window(&mut command);
 
-    result.map(|o| o.status.success()).unwrap_or(false)
+    command.output().map(|o| o.status.success()).unwrap_or(false)
 }
 
 /// Resolve the full path of a command.
 fn resolve_command_path(cmd: &str) -> Option<String> {
-    let output = if cfg!(target_os = "windows") {
-        StdCommand::new("where").arg(cmd).output().ok()?
+    let mut command = if cfg!(target_os = "windows") {
+        let mut c = StdCommand::new("where");
+        c.arg(cmd);
+        c
     } else {
-        StdCommand::new("which").arg(cmd).output().ok()?
+        let mut c = StdCommand::new("which");
+        c.arg(cmd);
+        c
     };
+    set_no_window(&mut command);
+
+    let output = command.output().ok()?;
 
     if output.status.success() {
         let path = String::from_utf8_lossy(&output.stdout);

@@ -3,6 +3,12 @@ use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::Command;
 use tokio::time::{timeout, Duration};
 
+// Windows 平台：隐藏控制台窗口的创建标志
+#[cfg(target_os = "windows")]
+use std::os::windows::process::CommandExt;
+#[cfg(target_os = "windows")]
+const CREATE_NO_WINDOW: u32 = 0x08000000;
+
 /// Error type for all git operations.
 #[derive(Debug, thiserror::Error)]
 pub enum GitError {
@@ -49,6 +55,11 @@ impl GitCommand {
             .arg("core.quotepath=off")
             .current_dir(&self.repo_path)
             .env("GIT_TERMINAL_PROMPT", "0");
+
+        // Windows: 隐藏控制台窗口，防止弹出 CMD 黑窗口
+        #[cfg(target_os = "windows")]
+        cmd.creation_flags(CREATE_NO_WINDOW);
+
         cmd
     }
 
@@ -138,6 +149,10 @@ impl GitCommand {
             .env("GIT_TERMINAL_PROMPT", "0")
             .stdout(Stdio::piped())
             .stderr(Stdio::piped());
+
+        // Windows: 隐藏控制台窗口，防止弹出 CMD 黑窗口
+        #[cfg(target_os = "windows")]
+        cmd.creation_flags(CREATE_NO_WINDOW);
 
         let start = Instant::now();
 

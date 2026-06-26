@@ -1,5 +1,9 @@
 use crate::git::command::{GitCommand, GitError};
 
+// Windows 平台：隐藏控制台窗口的创建标志
+#[cfg(target_os = "windows")]
+use std::os::windows::process::CommandExt;
+
 /// Start a rebase operation.
 pub async fn rebase<F>(
     path: &str,
@@ -73,6 +77,10 @@ where
         .args(&args)
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::piped());
+
+    // Windows: 隐藏控制台窗口
+    #[cfg(target_os = "windows")]
+    cmd.creation_flags(0x08000000);
 
     let output = cmd
         .output()
@@ -148,6 +156,10 @@ where
         .args(&["rebase", "-i", onto])
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::piped());
+
+    // Windows: 隐藏控制台窗口
+    #[cfg(target_os = "windows")]
+    cmd.creation_flags(0x08000000);
 
     let output = cmd
         .output()
