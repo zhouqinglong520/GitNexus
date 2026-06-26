@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { invoke } from '@tauri-apps/api/core';
 import { useGitStore } from './git-store';
+import { useUIStore } from './ui-store';
 import type { RepositoryInfo, Tab, TabType } from '@/types';
 
 interface RepositoryStore {
@@ -56,6 +57,13 @@ export const useRepositoryStore = create<RepositoryStore>((set, get) => ({
       get().addRecentRepo(path);
     } catch (error) {
       console.error('Failed to open repository:', error);
+      useUIStore.getState().addNotification({
+        type: 'error',
+        title: '无法打开仓库',
+        message: String(error),
+        duration: 8000,
+      });
+      throw error;
     }
   },
 

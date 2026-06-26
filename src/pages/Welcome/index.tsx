@@ -43,16 +43,33 @@ export const Welcome: React.FC = () => {
 
   const handleOpenRepo = async () => {
     try {
+      // Pre-check: verify git is available
+      try {
+        await invoke('git_get_git_version');
+      } catch {
+        addNotification({
+          type: 'error',
+          title: 'Git 未安装',
+          message: '请先安装 Git 后再使用本工具。下载地址：https://git-scm.com',
+          duration: 15000,
+        });
+        return;
+      }
+
       const selected = await open({ directory: true, multiple: false });
       if (selected && typeof selected === 'string') {
         await openRepo(selected);
-        navigate('/repo');
+        // Only navigate if openRepo actually succeeded (activeRepo was set)
+        if (useRepositoryStore.getState().activeRepo) {
+          navigate('/repo');
+        }
       }
     } catch (error) {
       addNotification({
         type: 'error',
         title: t('welcome.openFailed'),
         message: String(error),
+        duration: 8000,
       });
     }
   };
@@ -103,8 +120,19 @@ export const Welcome: React.FC = () => {
   };
 
   const handleOpenRecent = async (path: string) => {
-    await openRepo(path);
-    navigate('/repo');
+    try {
+      await openRepo(path);
+      if (useRepositoryStore.getState().activeRepo) {
+        navigate('/repo');
+      }
+    } catch (error) {
+      addNotification({
+        type: 'error',
+        title: t('welcome.openFailed'),
+        message: String(error),
+        duration: 8000,
+      });
+    }
   };
 
   return (
