@@ -47,6 +47,7 @@ export function useGitWatcher(repoPath: string | null) {
   useEffect(() => {
     if (!repoPath) return;
 
+    const cancelledRef = useRef(false);
     const unlisteners: Array<() => void> = [];
 
     const setupListeners = async () => {
@@ -59,6 +60,7 @@ export function useGitWatcher(repoPath: string | null) {
           };
           addOperation(op);
         });
+        if (cancelledRef.current) { unlisten1(); return; }
         unlisteners.push(unlisten1);
 
         // Listen for git operation progress
@@ -66,6 +68,7 @@ export function useGitWatcher(repoPath: string | null) {
           const { id, progress, total } = event.payload;
           useUIStore.getState().updateOperation(id, { progress, total });
         });
+        if (cancelledRef.current) { unlisten2(); return; }
         unlisteners.push(unlisten2);
 
         // Listen for git operation complete
@@ -80,6 +83,7 @@ export function useGitWatcher(repoPath: string | null) {
             addNotification({ type: 'error', title: message ?? 'Operation failed' });
           }
         });
+        if (cancelledRef.current) { unlisten3(); return; }
         unlisteners.push(unlisten3);
 
         // Listen for file system changes with 500ms debounce
@@ -89,6 +93,7 @@ export function useGitWatcher(repoPath: string | null) {
             fetchStatus();
           }, 500);
         });
+        if (cancelledRef.current) { unlisten4(); return; }
         unlisteners.push(unlisten4);
       } catch (error) {
         console.error('Failed to set up git watchers:', error);
@@ -98,6 +103,7 @@ export function useGitWatcher(repoPath: string | null) {
     setupListeners();
 
     return () => {
+      cancelledRef.current = true;
       unlisteners.forEach((unlisten) => unlisten());
       if (debouncedFetch.current) {
         clearTimeout(debouncedFetch.current);

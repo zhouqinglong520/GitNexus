@@ -7,8 +7,11 @@ use tauri::Emitter;
 // ============================================================
 
 #[tauri::command]
-pub fn git_open_repo(path: String) -> Result<RepositoryInfo, String> {
-    git::repository::open_repo(&path).map_err(|e| e.to_string())
+pub async fn git_open_repo(path: String) -> Result<RepositoryInfo, String> {
+    let result = tokio::task::spawn_blocking(move || {
+        git::repository::open_repo(&path)
+    }).await.map_err(|e| e.to_string())?;
+    result.map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -39,8 +42,11 @@ pub async fn git_clone_repo(
 }
 
 #[tauri::command]
-pub fn git_get_remotes(path: String) -> Result<Vec<Remote>, String> {
-    git::repository::get_remotes(&path).map_err(|e| e.to_string())
+pub async fn git_get_remotes(path: String) -> Result<Vec<Remote>, String> {
+    let result = tokio::task::spawn_blocking(move || {
+        git::repository::get_remotes(&path)
+    }).await.map_err(|e| e.to_string())?;
+    result.map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -95,7 +101,7 @@ pub async fn git_get_status(path: String) -> Result<WorktreeStatus, String> {
 // ============================================================
 
 #[tauri::command]
-pub fn git_get_diff(
+pub async fn git_get_diff(
     path: String,
     old_ref: Option<String>,
     new_ref: Option<String>,
@@ -103,29 +109,39 @@ pub fn git_get_diff(
     ignore_whitespace: Option<bool>,
     context_lines: Option<u32>,
 ) -> Result<String, String> {
-    git::diff::get_diff(&path, old_ref.as_deref(), new_ref.as_deref(), path_filter.as_deref(), ignore_whitespace, context_lines)
-        .map_err(|e| e.to_string())
+    let result = tokio::task::spawn_blocking(move || {
+        git::diff::get_diff(&path, old_ref.as_deref(), new_ref.as_deref(), path_filter.as_deref(), ignore_whitespace, context_lines)
+    }).await.map_err(|e| e.to_string())?;
+    result.map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-pub fn git_diff_revisions(
+pub async fn git_diff_revisions(
     path: String,
     old_ref: String,
     new_ref: String,
     path_filter: Option<String>,
 ) -> Result<String, String> {
-    git::diff::get_diff(&path, Some(&old_ref), Some(&new_ref), path_filter.as_deref(), None, None)
-        .map_err(|e| e.to_string())
+    let result = tokio::task::spawn_blocking(move || {
+        git::diff::get_diff(&path, Some(&old_ref), Some(&new_ref), path_filter.as_deref(), None, None)
+    }).await.map_err(|e| e.to_string())?;
+    result.map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-pub fn git_get_diff_staged(path: String, file: Option<String>) -> Result<String, String> {
-    git::diff::get_diff_staged(&path, file.as_deref()).map_err(|e| e.to_string())
+pub async fn git_get_diff_staged(path: String, file: Option<String>) -> Result<String, String> {
+    let result = tokio::task::spawn_blocking(move || {
+        git::diff::get_diff_staged(&path, file.as_deref())
+    }).await.map_err(|e| e.to_string())?;
+    result.map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-pub fn git_get_diff_unstaged(path: String, file: Option<String>) -> Result<String, String> {
-    git::diff::get_diff_unstaged(&path, file.as_deref()).map_err(|e| e.to_string())
+pub async fn git_get_diff_unstaged(path: String, file: Option<String>) -> Result<String, String> {
+    let result = tokio::task::spawn_blocking(move || {
+        git::diff::get_diff_unstaged(&path, file.as_deref())
+    }).await.map_err(|e| e.to_string())?;
+    result.map_err(|e| e.to_string())
 }
 
 // ============================================================
@@ -133,8 +149,11 @@ pub fn git_get_diff_unstaged(path: String, file: Option<String>) -> Result<Strin
 // ============================================================
 
 #[tauri::command]
-pub fn git_list_branches(path: String) -> Result<Vec<Branch>, String> {
-    git::branch::list_branches(&path).map_err(|e| e.to_string())
+pub async fn git_list_branches(path: String) -> Result<Vec<Branch>, String> {
+    let result = tokio::task::spawn_blocking(move || {
+        git::branch::list_branches(&path)
+    }).await.map_err(|e| e.to_string())?;
+    result.map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -167,34 +186,49 @@ pub fn git_set_upstream(path: String, branch: String, remote_branch: String) -> 
 // ============================================================
 
 #[tauri::command]
-pub fn git_commit(
+pub async fn git_commit(
     path: String,
     message: String,
     amend: bool,
     signoff: bool,
     no_verify: bool,
 ) -> Result<String, String> {
-    git::commit::commit(&path, &message, amend, signoff, no_verify).map_err(|e| e.to_string())
+    let result = tokio::task::spawn_blocking(move || {
+        git::commit::commit(&path, &message, amend, signoff, no_verify)
+    }).await.map_err(|e| e.to_string())?;
+    result.map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-pub fn git_stage(path: String, files: Vec<String>) -> Result<(), String> {
-    git::commit::stage(&path, &files).map_err(|e| e.to_string())
+pub async fn git_stage(path: String, files: Vec<String>) -> Result<(), String> {
+    let result = tokio::task::spawn_blocking(move || {
+        git::commit::stage(&path, &files)
+    }).await.map_err(|e| e.to_string())?;
+    result.map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-pub fn git_unstage(path: String, files: Vec<String>) -> Result<(), String> {
-    git::commit::unstage(&path, &files).map_err(|e| e.to_string())
+pub async fn git_unstage(path: String, files: Vec<String>) -> Result<(), String> {
+    let result = tokio::task::spawn_blocking(move || {
+        git::commit::unstage(&path, &files)
+    }).await.map_err(|e| e.to_string())?;
+    result.map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-pub fn git_stage_all(path: String) -> Result<(), String> {
-    git::commit::stage_all(&path).map_err(|e| e.to_string())
+pub async fn git_stage_all(path: String) -> Result<(), String> {
+    let result = tokio::task::spawn_blocking(move || {
+        git::commit::stage_all(&path)
+    }).await.map_err(|e| e.to_string())?;
+    result.map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-pub fn git_unstage_all(path: String) -> Result<(), String> {
-    git::commit::unstage_all(&path).map_err(|e| e.to_string())
+pub async fn git_unstage_all(path: String) -> Result<(), String> {
+    let result = tokio::task::spawn_blocking(move || {
+        git::commit::unstage_all(&path)
+    }).await.map_err(|e| e.to_string())?;
+    result.map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -397,8 +431,11 @@ pub fn git_clear_stash(path: String) -> Result<(), String> {
 // ============================================================
 
 #[tauri::command]
-pub fn git_list_tags(path: String) -> Result<Vec<Tag>, String> {
-    git::tag::list_tags(&path).map_err(|e| e.to_string())
+pub async fn git_list_tags(path: String) -> Result<Vec<Tag>, String> {
+    let result = tokio::task::spawn_blocking(move || {
+        git::tag::list_tags(&path)
+    }).await.map_err(|e| e.to_string())?;
+    result.map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -582,8 +619,11 @@ pub fn git_create_archive(
 // ============================================================
 
 #[tauri::command]
-pub fn git_discard_changes(path: String, files: Vec<String>) -> Result<(), String> {
-    git::discard::discard_changes(&path, &files).map_err(|e| e.to_string())
+pub async fn git_discard_changes(path: String, files: Vec<String>) -> Result<(), String> {
+    let result = tokio::task::spawn_blocking(move || {
+        git::discard::discard_changes(&path, &files)
+    }).await.map_err(|e| e.to_string())?;
+    result.map_err(|e| e.to_string())
 }
 
 // ============================================================
@@ -640,8 +680,11 @@ pub async fn git_search_commits(
 // ============================================================
 
 #[tauri::command]
-pub fn git_get_in_progress(path: String) -> Result<InProgressState, String> {
-    git::in_progress::get_in_progress(&path).map_err(|e| e.to_string())
+pub async fn git_get_in_progress(path: String) -> Result<InProgressState, String> {
+    let result = tokio::task::spawn_blocking(move || {
+        git::in_progress::get_in_progress(&path)
+    }).await.map_err(|e| e.to_string())?;
+    result.map_err(|e| e.to_string())
 }
 
 // ============================================================

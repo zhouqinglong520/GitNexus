@@ -47,13 +47,28 @@ import type {
 
 const pendingRequests = new Map<string, Promise<any>>();
 
-async function dedupedInvoke<T>(command: string, args?: any): Promise<T> {
+async function dedupedInvoke<T>(command: string, args?: any, timeoutMs = 30000): Promise<T> {
   const key = JSON.stringify({ command, args });
   if (pendingRequests.has(key)) {
     return pendingRequests.get(key) as Promise<T>;
   }
-  const promise = invoke<T>(command, args).finally(() => {
-    pendingRequests.delete(key);
+  const promise = new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => {
+      pendingRequests.delete(key);
+      reject(new Error(`${command} timed out after ${timeoutMs}ms`));
+    }, timeoutMs);
+    invoke<T>(command, args)
+      .then((result) => {
+        clearTimeout(timer);
+        resolve(result);
+      })
+      .catch((error) => {
+        clearTimeout(timer);
+        reject(error);
+      })
+      .finally(() => {
+        pendingRequests.delete(key);
+      });
   });
   pendingRequests.set(key, promise);
   return promise;
