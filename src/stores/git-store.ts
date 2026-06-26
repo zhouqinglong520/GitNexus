@@ -543,8 +543,11 @@ export const useGitStore = create<GitStore>((set, get) => ({
     set((s) => ({ loading: { ...s.loading, commits: true, branches: true, tags: true, remotes: true, stashes: true, status: true } }));
     try {
       const path = get().repoPath;
-      if (!path) return;
-      const [commits, branches, tags, remotes, stashes, status] = await Promise.all([
+      if (!path) {
+        set((s) => ({ loading: { ...s.loading, commits: false, branches: false, tags: false, remotes: false, stashes: false, status: false } }));
+        return;
+      }
+      const results = await Promise.allSettled([
         dedupedInvoke('git_get_commits', { path, branch: null, limit: 200, offset: 0 }),
         dedupedInvoke('git_list_branches', { path }),
         dedupedInvoke('git_list_tags', { path }),
@@ -552,13 +555,15 @@ export const useGitStore = create<GitStore>((set, get) => ({
         dedupedInvoke('git_list_stash', { path }),
         dedupedInvoke('git_get_status', { path }),
       ]);
+      // 单个失败不影响其他数据
+      const commits = results[0].status === 'fulfilled' ? results[0].value as Commit[] : get().commits;
+      const branches = results[1].status === 'fulfilled' ? results[1].value as Branch[] : get().branches;
+      const tags = results[2].status === 'fulfilled' ? results[2].value as Tag[] : get().tags;
+      const remotes = results[3].status === 'fulfilled' ? results[3].value as Remote[] : get().remotes;
+      const stashes = results[4].status === 'fulfilled' ? results[4].value as Stash[] : get().stashes;
+      const status = results[5].status === 'fulfilled' ? results[5].value as Status : get().status;
       set({
-        commits: commits as Commit[],
-        branches: branches as Branch[],
-        tags: tags as Tag[],
-        remotes: remotes as Remote[],
-        stashes: stashes as Stash[],
-        status: status as Status,
+        commits, branches, tags, remotes, stashes, status,
         loading: { ...get().loading, commits: false, branches: false, tags: false, remotes: false, stashes: false, status: false },
       });
     } catch (e) {

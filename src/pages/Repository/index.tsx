@@ -49,10 +49,14 @@ export const Repository: React.FC = () => {
   const activeViewTab = useUIStore((s) => s.activeViewTab);
   const { t } = useTranslation();
 
+  // 追踪是否完成过首次数据加载（避免 loading 初始 false 导致跳过骨架屏）
+  const [initialLoaded, setInitialLoaded] = useState(false);
+
   // 监听仓库文件系统变化，自动刷新 status / branches 等
   useGitWatcher(activeRepo);
 
   const isLoading = loading.commits || loading.branches || loading.tags || loading.remotes || loading.status;
+  const showLoading = !initialLoaded || isLoading;
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
   const [dragSourceIndex, setDragSourceIndex] = useState<number | null>(null);
 
@@ -66,8 +70,12 @@ export const Repository: React.FC = () => {
   // 打开仓库后加载初始数据
   useEffect(() => {
     if (activeRepo) {
-      fetchAll().catch((err) => {
+      setInitialLoaded(false);
+      fetchAll().then(() => {
+        setInitialLoaded(true);
+      }).catch((err) => {
         console.error('Failed to load repository data:', err);
+        setInitialLoaded(true); // 即使失败也标记已加载，显示空内容而不是永远转圈
       });
     }
   }, [activeRepo, fetchAll]);
@@ -272,7 +280,7 @@ export const Repository: React.FC = () => {
 
           {/* 内容区：根据 activeViewTab 显示对应视图 */}
           <div className="flex-1 overflow-hidden">
-            {isLoading ? (
+            {showLoading ? (
               /* Loading 骨架屏 */
               <div
                 className="flex flex-col items-center justify-center h-full gap-3"
