@@ -1,6 +1,6 @@
 {
   "name": "gitnexus",
-  "version": "1.0.0",
+  "version": "0.1.0",
   "description": "GitNexus - A Git GUI Desktop Tool",
   "type": "module",
   "scripts": {
